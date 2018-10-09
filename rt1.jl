@@ -10,7 +10,20 @@ function point_at_parameter(r::Ray, t::Float64)
     return r.origin + t * r.direction
 end
 
+function hit_sphere(center::Array{Float64}, radius::Float64, r::Ray)
+    a = dot(r.direction, r.direction)
+    s2o = r.origin - center
+    b = 2 * dot(r.direction, s2o)
+    c = dot(s2o, s2o) - radius^2
+
+    return b^2 - 4*a*c > 0
+end
+
 function color(r::Ray)
+    if (hit_sphere([0.0, 0.0, -1.0], 0.5, r))
+        return [1, 0, 0]
+    end
+
     u = r.direction / norm(r.direction)
     t = 0.5 * (u[2] + 1.0)
     return (1.0 - t) * [1.0, 1.0, 1.0] + t * [0.5, 0.7, 1.0]
