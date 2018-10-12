@@ -16,6 +16,18 @@ struct HitRecord
     HitRecord(t,p,normal) = new(t, p, normal)
 end
 
+struct Camera
+    lower_left_corner::Array{Float64}
+    horizontal::Array{Float64}
+    vertical::Array{Float64}
+    origin::Array{Float64}
+end
+
+function getRay(c::Camera, u::Float64, v::Float64)::Ray
+    return Ray(c.origin, c.lower_left_corner + u * c.horizontal + v * c.vertical)
+end
+
+
 function point_at_parameter(r::Ray, t::Float64)
     return r.origin + t * r.direction
 end
@@ -82,10 +94,7 @@ function main()
     ny::Int = 400;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    lower_left_corner = [-2.0, -1.0, -1.0]
-    horizontal = [4.0, 0.0, 0.0]
-    vertical = [0.0, 2.0, 0.0]
-    origin = [0.0, 0.0, 0.0]
+    camera = Camera([-2.0, -1.0, -1.0], [4.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.0])
 
     world::Array{Hitable} = [Sphere([0.0, 0.0, -1.0], 0.5), Sphere([0.0, -100.5, -1], 100)]
 
@@ -94,7 +103,7 @@ function main()
             u::Float64 = convert(Float64, i) / nx
             v::Float64 = convert(Float64, j) / ny
 
-            r = Ray(origin, lower_left_corner + u * horizontal + v * vertical)
+            r = getRay(camera, u, v)
             col = color(r, world)
                     
             ir::Int = trunc(255.99 * col[1])
