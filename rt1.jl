@@ -90,8 +90,9 @@ function color(r::Ray, world::Array{Hitable})
 end
 
 function main()
-    nx::Int = 800;
-    ny::Int = 400;
+    nx::Int = 200;
+    ny::Int = 100;
+    ns::Int = 100;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     camera = Camera([-2.0, -1.0, -1.0], [4.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.0])
@@ -100,11 +101,16 @@ function main()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
-            u::Float64 = convert(Float64, i) / nx
-            v::Float64 = convert(Float64, j) / ny
 
-            r = getRay(camera, u, v)
-            col = color(r, world)
+            col::Array{Float64} = [0.0, 0.0, 0.0]
+            for s = 1:ns
+                u::Float64 = (convert(Float64, i) + rand()) / nx
+                v::Float64 = (convert(Float64, j) + rand()) / ny
+                r = getRay(camera, u, v)
+                col += color(r, world)
+            end
+
+            col /= convert(Float64, ns)
                     
             ir::Int = trunc(255.99 * col[1])
             ig::Int = trunc(255.99 * col[2])
