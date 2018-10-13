@@ -121,6 +121,7 @@ function main()
             end
 
             col /= convert(Float64, ns)
+            col = sqrt.(col)
                     
             ir::Int = trunc(255.99 * col[1])
             ig::Int = trunc(255.99 * col[2])
