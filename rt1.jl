@@ -78,10 +78,20 @@ function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::
     return result
 end
 
+function random_in_unit_sphere()
+    p::Array{Float64} = [0.0, 0.0, 0.0]
+    while true
+        p = 2.0 * [rand(), rand(), rand()] - [1.0, 1.0, 1.0]
+        norm(p)^2 >= 1.0 && break;
+    end
+    return p
+end
+
 function color(r::Ray, world::Array{Hitable})
-    hitres = hit(world, r, 0.0, 10000.0)
+    hitres = hit(world, r, 0.0, typemax(Float64))
     if (isa(hitres, HitRecord))
-        return 0.5 * (hitres.normal + [1.0, 1.0, 1.0])
+        target = hitres.p + hitres.normal + random_in_unit_sphere()
+        return 0.5 * color( Ray(hitres.p, target - hitres.p), world)
     else
         u = r.direction / norm(r.direction)
         t = 0.5 * (u[2] + 1.0)
