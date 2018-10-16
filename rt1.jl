@@ -40,6 +40,8 @@ end
 
 struct Metal <: Material
     albedo::Array{Float64}
+    fuzz::Float64
+    Metal(a, f) = new(a, clamp(f, 0.0, 1.0))
 end
 
 function reflect(v::Array{Float64}, n::Array{Float64})::Array{Float64}
@@ -63,7 +65,7 @@ end
 
 function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
     reflected = reflect(r_in.direction / norm(r_in.direction), hit.normal)
-    scattered = Ray(hit.p, reflected)
+    scattered = Ray(hit.p, reflected + m.fuzz * random_in_unit_sphere())
     return ScatterRecord(scattered, m.albedo)
 end
 
@@ -138,8 +140,8 @@ function color(r::Ray, world::Array{Hitable}, depth::Int64)::Array{Float64}
 end
 
 function main()
-    nx::Int = 400;
-    ny::Int = 200;
+    nx::Int = 200;
+    ny::Int = 100;
     ns::Int = 100;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
@@ -148,8 +150,8 @@ function main()
     world::Array{Hitable} = [
         Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.8, 0.3, 0.3])),
         Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
-        Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
-        Sphere([-1.0, 0.0, -1], 0.5, Metal([0.8, 0.8, 0.8]))
+        Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2], 1.0)),
+        Sphere([-1.0, 0.0, -1], 0.5, Metal([0.8, 0.8, 0.8],  0.3))
     ]
 
     for j::Int = ny - 1 : -1 : 0
