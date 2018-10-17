@@ -52,7 +52,7 @@ function random_in_unit_sphere()
     p::Array{Float64} = [0.0, 0.0, 0.0]
     while true
         p = 2.0 * [rand(), rand(), rand()] - [1.0, 1.0, 1.0]
-        norm(p)^2 >= 1.0 && break;
+        norm(p)^2 < 1.0 && break;
     end
     return p
 end
