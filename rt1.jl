@@ -1,60 +1,87 @@
 using Printf
 using LinearAlgebra
+using Base
 
 abstract type Hitable end
 abstract type Material end
 
+const Vec3 = Array{Float64, 1}
+
 struct Sphere <: Hitable
-    center::Array{Float64}
+    center::Vec3
     radius::Float64
     material::Material
 end
 
 struct Ray
-    origin::Array{Float64, 1}
-    direction::Array{Float64, 1}
+    origin::Vec3
+    direction::Vec3
 end
 
 struct HitRecord
     t::Float64
-    p::Array{Float64}
-    normal::Array{Float64}
+    p::Vec3
+    normal::Vec3
     material::Material
 end
 
 struct ScatterRecord
     ray::Ray
-    attenuation::Array{Float64}
+    attenuation::Vec3
 end
 
 struct Camera
-    lower_left_corner::Array{Float64}
-    horizontal::Array{Float64}
-    vertical::Array{Float64}
-    origin::Array{Float64}
+    lower_left_corner::Vec3
+    horizontal::Vec3
+    vertical::Vec3
+    origin::Vec3
 end
 
 struct Lambertian <: Material
-    albedo::Array{Float64}
+    albedo::Vec3
 end
 
 struct Metal <: Material
-    albedo::Array{Float64}
+    albedo::Vec3
     fuzz::Float64
     Metal(a, f) = new(a, clamp(f, 0.0, 1.0))
+    Metal(a) = new(a, 0.0)
 end
 
-function reflect(v::Array{Float64}, n::Array{Float64})::Array{Float64}
-    return v - 2.0 * dot(v,n) * n
+struct Dielectric <: Material
+    ref_idx::Float64
+end
+
+function normalize(v::Vec3)::Vec3
+    return v / norm(v)
 end
 
 function random_in_unit_sphere()
-    p::Array{Float64} = [0.0, 0.0, 0.0]
+    p::Vec3 = [0.0, 0.0, 0.0]
     while true
         p = 2.0 * [rand(), rand(), rand()] - [1.0, 1.0, 1.0]
         norm(p)^2 < 1.0 && break;
     end
     return p
+end
+
+
+
+function refract(v::Vec3, n::Vec3, ni_over_nt::Float64)::Union{Vec3, Nothing}
+    uv = normalize(v)
+
+    dt = dot(uv, n)
+    discriminant = 1.0 - ni_over_nt^2 * (1.0 - dt^2)
+
+    if (discriminant > 0.0)
+        return ni_over_nt * (uv - n * dt) - n * sqrt(discriminant)
+    else
+        return nothing
+    end
+end
+
+function reflect(v::Array{Float64}, n::Array{Float64})::Array{Float64}
+    return v - 2.0 * dot(v,n) * n
 end
 
 function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
@@ -68,6 +95,33 @@ function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Noth
     scattered = Ray(hit.p, reflected + m.fuzz * random_in_unit_sphere())
     return ScatterRecord(scattered, m.albedo)
 end
+
+function scatter(d::Dielectric, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
+
+    outward_normal::Vec3 = hit.normal
+    ni_over_nt::Float64 = 1.0
+    attenuation = [1.0, 1.0, 1.0]
+
+    if (dot(r_in.direction, hit.normal) > 0.0)
+        outward_normal = -hit.normal
+        ni_over_nt = d.ref_idx
+    else
+        outward_normal = hit.normal
+        ni_over_nt = 1.0 / d.ref_idx
+    end
+
+    refract_res = refract(r_in.direction, outward_normal, ni_over_nt)
+
+    if (isa(refract_res, Vec3))
+        scattered = Ray(hit.p, refract_res)
+        return ScatterRecord(scattered, attenuation)
+    else
+        sqrt(-1)
+        scattered = Ray(hit.p, reflect(r_in.direction, hit.normal))
+        return nothing
+    end
+end
+
 
 function getRay(c::Camera, u::Float64, v::Float64)::Ray
     return Ray(c.origin, c.lower_left_corner + u * c.horizontal + v * c.vertical)
@@ -89,6 +143,13 @@ function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitR
         t1 = (-b - sqrt(D)) / (2.0 * a)
         if (t1 < t_max && t1 > t_min)
             p = point_at_parameter(r, t1)
+
+        # @printf(Base.fdio(2), "hit1 = <%f,%f,%f> | t = %f\n",
+        #         p[1],
+        #         p[2],
+        #         p[3],
+        #         t1
+        #         )
             return HitRecord(t1,
                               p,
                              (p - sphere.center) / sphere.radius,
@@ -97,14 +158,22 @@ function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitR
         
         t2 = (-b + sqrt(D)) / (2.0 * a)
         if (t2 < t_max && t2 > t_min)
-            p = point_at_parameter(r, t1)
+            p = point_at_parameter(r, t2)
+
+        # @printf(Base.fdio(2), "hit2 = <%f,%f,%f> | t = %f\n",
+        #         p[1],
+        #         p[2],
+        #         p[3],
+        #         t2,
+        #         )
+
             return HitRecord(t2,
                               p, 
                              (p - sphere.center) / sphere.radius,
                              sphere.material)
         end
-        return nothing
     end
+    return nothing
 end
 
 function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
@@ -148,10 +217,10 @@ function main()
     camera = Camera([-2.0, -1.0, -1.0], [4.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.0])
 
     world::Array{Hitable} = [
-        Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.8, 0.3, 0.3])),
+        Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
         Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
-        Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2], 1.0)),
-        Sphere([-1.0, 0.0, -1], 0.5, Metal([0.8, 0.8, 0.8],  0.3))
+        Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
+        Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5))
     ]
 
     for j::Int = ny - 1 : -1 : 0
