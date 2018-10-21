@@ -256,6 +256,10 @@ function main()
             ib::Int = trunc(255.99 * col[3])
             @printf("%d %d %d\n", ir, ig, ib)
         end
+
+        if (j % (ny / 16) == 0)
+        @printf(Base.fdio(2), "progress: %f\n", 1.0 - convert(Float64, j) / ny)
+        end
     end
 end
 
