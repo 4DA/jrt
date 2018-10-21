@@ -65,7 +65,10 @@ function random_in_unit_sphere()
     return p
 end
 
-
+function schlick(cosine::Float64, ref_idx::Float64)
+    r0 = ((1.0 - ref_idx) / (1.0 + ref_idx)) ^ 2
+    return r0 + (1 - r0) * (1.0 - cosine) ^ 5
+end
 
 function refract(v::Vec3, n::Vec3, ni_over_nt::Float64)::Union{Vec3, Nothing}
     uv = normalize(v)
@@ -97,28 +100,38 @@ function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Noth
 end
 
 function scatter(d::Dielectric, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
-
     outward_normal::Vec3 = hit.normal
     ni_over_nt::Float64 = 1.0
     attenuation = [1.0, 1.0, 1.0]
+    reflected = reflect(r_in.direction, hit.normal)
+    refracted::Vec3 = [1.0, 1.0, 1.0]
+    cosine::Float64 = 0.0
+    reflect_prob::Float64 = 0.0
 
     if (dot(r_in.direction, hit.normal) > 0.0)
         outward_normal = -hit.normal
         ni_over_nt = d.ref_idx
+        cosine = d.ref_idx * dot(r_in.direction, hit.normal) / norm(r_in.direction)
     else
         outward_normal = hit.normal
         ni_over_nt = 1.0 / d.ref_idx
+        cosine = -dot(r_in.direction, hit.normal) / norm(r_in.direction)
     end
 
     refract_res = refract(r_in.direction, outward_normal, ni_over_nt)
 
     if (isa(refract_res, Vec3))
+        reflect_prob = schlick(cosine, d.ref_idx)
         scattered = Ray(hit.p, refract_res)
-        return ScatterRecord(scattered, attenuation)
     else
-        sqrt(-1)
-        scattered = Ray(hit.p, reflect(r_in.direction, hit.normal))
-        return nothing
+        reflect_prob = 1.0
+        scattered = Ray(hit.p, reflected)
+    end
+
+    if (rand() < reflect_prob)
+        return ScatterRecord(Ray(hit.p, reflected), attenuation)
+    else
+        return ScatterRecord(Ray(hit.p, refract_res), attenuation)
     end
 end
 
@@ -211,7 +224,7 @@ end
 function main()
     nx::Int = 200;
     ny::Int = 100;
-    ns::Int = 100;
+    ns::Int = 50;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     camera = Camera([-2.0, -1.0, -1.0], [4.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.0])
@@ -220,7 +233,8 @@ function main()
         Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
         Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
         Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
-        Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5))
+        Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
+        Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5))
     ]
 
     for j::Int = ny - 1 : -1 : 0
