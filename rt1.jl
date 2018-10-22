@@ -31,10 +31,24 @@ struct ScatterRecord
 end
 
 struct Camera
+    origin::Vec3
     lower_left_corner::Vec3
     horizontal::Vec3
     vertical::Vec3
-    origin::Vec3
+
+    function Camera(lookFrom::Vec3, lookAt::Vec3, vUp::Vec3, vfov::Float64, aspect::Float64)
+        theta = vfov * pi / 180.0
+        half_height = tan(theta / 2.0)
+        half_width = aspect * half_height
+        origin = lookFrom
+        w = normalize(lookFrom - lookAt)
+        u = normalize(cross(vUp, w))
+        v = cross(w, u)
+        lower_left_corner = origin - half_width * u - half_height * v - w
+        horizontal = 2 * half_width * u
+        vertical = 2 * half_height * v
+        return new(origin, lower_left_corner, horizontal, vertical)
+    end
 end
 
 struct Lambertian <: Material
@@ -136,8 +150,8 @@ function scatter(d::Dielectric, r_in::Ray, hit::HitRecord)::Union{ScatterRecord,
 end
 
 
-function getRay(c::Camera, u::Float64, v::Float64)::Ray
-    return Ray(c.origin, c.lower_left_corner + u * c.horizontal + v * c.vertical)
+function getRay(c::Camera, s::Float64, t::Float64)::Ray
+    return Ray(c.origin, c.lower_left_corner + s * c.horizontal + t * c.vertical - c.origin)
 end
 
 
@@ -227,14 +241,20 @@ function main()
     ns::Int = 50;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    camera = Camera([-2.0, -1.0, -1.0], [4.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.0])
+    camera = Camera([-2.0, 2.0, 1.0], [0.0, -0.0, -1.0], [0.0, 1.0, 0.0], 90.0,
+                    convert(Float64, nx) / convert(Float64, ny))
 
+    R = cos(pi / 4)
+    
     world::Array{Hitable} = [
         Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
         Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
         Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
         Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
-        Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5))
+        Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5)),
+
+        # Sphere([-R, 0.0, -1], R, Lambertian([0.0, 0.0, 1.0])),
+        # Sphere([R, 0.0, -1], R, Lambertian([1.0, 0.0, 0.0])),
     ]
 
     for j::Int = ny - 1 : -1 : 0
