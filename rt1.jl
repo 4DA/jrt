@@ -35,8 +35,13 @@ struct Camera
     lower_left_corner::Vec3
     horizontal::Vec3
     vertical::Vec3
+    u::Vec3
+    v::Vec3
+    w::Vec3
+    lens_radius::Float64
 
-    function Camera(lookFrom::Vec3, lookAt::Vec3, vUp::Vec3, vfov::Float64, aspect::Float64)
+    function Camera(lookFrom::Vec3, lookAt::Vec3, vUp::Vec3, vfov::Float64, aspect::Float64, aperture::Float64, focus_dist::Float64)
+        lens_radius = aperture / 2.0
         theta = vfov * pi / 180.0
         half_height = tan(theta / 2.0)
         half_width = aspect * half_height
@@ -44,10 +49,10 @@ struct Camera
         w = normalize(lookFrom - lookAt)
         u = normalize(cross(vUp, w))
         v = cross(w, u)
-        lower_left_corner = origin - half_width * u - half_height * v - w
-        horizontal = 2 * half_width * u
-        vertical = 2 * half_height * v
-        return new(origin, lower_left_corner, horizontal, vertical)
+        lower_left_corner = origin - half_width * focus_dist * u - half_height * focus_dist * v - focus_dist * w
+        horizontal = 2 * half_width * focus_dist * u
+        vertical = 2 * half_height * focus_dist * v
+        return new(origin, lower_left_corner, horizontal, vertical, u, v, w, lens_radius)
     end
 end
 
@@ -74,6 +79,15 @@ function random_in_unit_sphere()
     p::Vec3 = [0.0, 0.0, 0.0]
     while true
         p = 2.0 * [rand(), rand(), rand()] - [1.0, 1.0, 1.0]
+        norm(p)^2 < 1.0 && break;
+    end
+    return p
+end
+
+function random_in_unit_disk()
+    p::Vec3 = [0.0, 0.0, 0.0]
+    while true
+        p = 2.0 * [rand(), rand(), 0.0] - [1.0, 1.0, 0.0]
         norm(p)^2 < 1.0 && break;
     end
     return p
@@ -151,7 +165,9 @@ end
 
 
 function getRay(c::Camera, s::Float64, t::Float64)::Ray
-    return Ray(c.origin, c.lower_left_corner + s * c.horizontal + t * c.vertical - c.origin)
+    rd = c.lens_radius * random_in_unit_disk()
+    offset = c.u * rd[1] + c.v * rd[2]
+    return Ray(c.origin + offset, c.lower_left_corner + s * c.horizontal + t * c.vertical - c.origin - offset)
 end
 
 
@@ -241,8 +257,12 @@ function main()
     ns::Int = 50;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    camera = Camera([-2.0, 2.0, 1.0], [0.0, -0.0, -1.0], [0.0, 1.0, 0.0], 90.0,
-                    convert(Float64, nx) / convert(Float64, ny))
+    lookFrom = [3.0, 3.0, 2.0]
+    lookAt = [0.0, -0.0, -1.0]
+    aperture = 2.0
+    dist_to_focus = norm(lookFrom - lookAt)
+    camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], 20.0,
+                    convert(Float64, nx) / convert(Float64, ny), aperture, dist_to_focus)
 
     R = cos(pi / 4)
     
