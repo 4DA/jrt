@@ -251,31 +251,63 @@ function color(r::Ray, world::Array{Hitable}, depth::Int64)::Array{Float64}
     end
 end
 
+function random_scene()::Array{Hitable}
+    list::Array{Hitable} = []
+    push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian([0.5, 0.5, 0.5])))
+
+    for a = -11 : 10
+        for b = -11 : 10
+            choose_mat = rand()
+            center = [a + 0.9 * rand(), 0.2, b + 0.9 * rand()]
+
+            if (norm(center - [4.0, 0.2, 0.0]) > 0.9)
+                if (choose_mat < 0.8) # diffuse
+                    push!(list, Sphere(center, 0.2,
+                                       Lambertian([rand()^2, rand()^2, rand()^2])))
+                elseif (choose_mat < 0.95) #metal
+                    push!(list, Sphere(center, 0.2,
+                                       Metal([0.5 * (1 + rand()),0.5 * (1 + rand()),0.5 * (1 + rand())])))
+                else #glass
+                    push!(list, Sphere(center, 0.2, Dielectric(1.5)))
+                end
+            end
+        end
+    end
+
+    push!(list, Sphere([0.0, 1.0, 0.0], 1.0, Dielectric(1.5)))
+    push!(list, Sphere([-4.0, 1.0, 0.0], 1.0,  Lambertian([0.4, 0.2, 0.1])))
+    push!(list, Sphere([4.0, 1.0, 0.0], 1.0,  Metal([0.7, 0.6, 0.5])))
+
+    return list
+end
+
 function main()
     nx::Int = 200;
     ny::Int = 100;
     ns::Int = 50;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    lookFrom = [3.0, 3.0, 2.0]
-    lookAt = [0.0, -0.0, -1.0]
-    aperture = 2.0
+    lookFrom = [16.0, 2.0, 3.5]
+    lookAt = [4.0, 0.5, 1.0]
+    aperture = 0.15
     dist_to_focus = norm(lookFrom - lookAt)
-    camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], 20.0,
+    camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], 15.0,
                     convert(Float64, nx) / convert(Float64, ny), aperture, dist_to_focus)
 
     R = cos(pi / 4)
     
-    world::Array{Hitable} = [
-        Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
-        Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
-        Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
-        Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
-        Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5)),
+    # world::Array{Hitable} = [
+    #     Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
+    #     Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
+    #     Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
+    #     Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
+    #     Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5)),
 
-        # Sphere([-R, 0.0, -1], R, Lambertian([0.0, 0.0, 1.0])),
-        # Sphere([R, 0.0, -1], R, Lambertian([1.0, 0.0, 0.0])),
-    ]
+    #     # Sphere([-R, 0.0, -1], R, Lambertian([0.0, 0.0, 1.0])),
+    #     # Sphere([R, 0.0, -1], R, Lambertian([1.0, 0.0, 0.0])),
+    # ]
+
+    world::Array{Hitable} = random_scene()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
@@ -297,7 +329,7 @@ function main()
             @printf("%d %d %d\n", ir, ig, ib)
         end
 
-        if (j % (ny / 16) == 0)
+        if (j % (ny / 10) == 0)
         @printf(Base.fdio(2), "progress: %f\n", 1.0 - convert(Float64, j) / ny)
         end
     end
