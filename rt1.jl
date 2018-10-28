@@ -2,20 +2,47 @@ using Printf
 using LinearAlgebra
 using Base
 
+const Vec3 = Array{Float64, 1}
+
 abstract type Hitable end
 abstract type Material end
 
-const Vec3 = Array{Float64, 1}
+abstract type AbstractSphere <: Hitable end
 
-struct Sphere <: Hitable
+struct Sphere <: AbstractSphere
     center::Vec3
     radius::Float64
     material::Material
 end
 
+
+struct MovingSphere <: AbstractSphere
+    center0::Vec3
+    center1::Vec3
+    time0::Float64
+    time1::Float64
+    radius::Float64
+    material::Material
+end
+
+function center(s::Sphere, ::Float64)::Vec3
+    return s.center
+end
+
+function center(s::MovingSphere, time::Float64)::Vec3
+    # if (time > 0.5)
+    #     @printf(Base.fdio(2), "time = %f, t1 = %f, t2 = %f\n", time, s.time0, s.time1)
+    # end
+    c = s.center0 + ((time - s.time0) / (s.time1 - s.time0)) * (s.center1 - s.center0)
+    # @printf(Base.fdio(2), "c = <%f,%f,%f>\n", c[1],c[2],c[3])
+end
+
 struct Ray
     origin::Vec3
     direction::Vec3
+    time::Float64
+    Ray(origin, direction, time) = new(origin, direction, time)
+    Ray(origin, direction) = new(origin, direction, 0.0)
 end
 
 struct HitRecord
@@ -39,8 +66,12 @@ struct Camera
     v::Vec3
     w::Vec3
     lens_radius::Float64
+    time0::Float64
+    time1::Float64
 
-    function Camera(lookFrom::Vec3, lookAt::Vec3, vUp::Vec3, vfov::Float64, aspect::Float64, aperture::Float64, focus_dist::Float64)
+    function Camera(lookFrom::Vec3, lookAt::Vec3, vUp::Vec3, vfov::Float64, aspect::Float64,
+                    aperture::Float64, focus_dist::Float64,
+                    t0::Float64, t1::Float64)
         lens_radius = aperture / 2.0
         theta = vfov * pi / 180.0
         half_height = tan(theta / 2.0)
@@ -52,7 +83,7 @@ struct Camera
         lower_left_corner = origin - half_width * focus_dist * u - half_height * focus_dist * v - focus_dist * w
         horizontal = 2 * half_width * focus_dist * u
         vertical = 2 * half_height * focus_dist * v
-        return new(origin, lower_left_corner, horizontal, vertical, u, v, w, lens_radius)
+        return new(origin, lower_left_corner, horizontal, vertical, u, v, w, lens_radius, t0, t1)
     end
 end
 
@@ -123,7 +154,7 @@ end
 
 function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
     reflected = reflect(r_in.direction / norm(r_in.direction), hit.normal)
-    scattered = Ray(hit.p, reflected + m.fuzz * random_in_unit_sphere())
+    scattered = Ray(hit.p, reflected + m.fuzz * random_in_unit_sphere(), r_in.time)
     return ScatterRecord(scattered, m.albedo)
 end
 
@@ -167,7 +198,9 @@ end
 function getRay(c::Camera, s::Float64, t::Float64)::Ray
     rd = c.lens_radius * random_in_unit_disk()
     offset = c.u * rd[1] + c.v * rd[2]
-    return Ray(c.origin + offset, c.lower_left_corner + s * c.horizontal + t * c.vertical - c.origin - offset)
+    return Ray(c.origin + offset,
+               c.lower_left_corner + s * c.horizontal + t * c.vertical - c.origin - offset,
+               c.time0 + rand() * (c.time1 - c.time0))
 end
 
 
@@ -219,6 +252,50 @@ function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitR
     return nothing
 end
 
+
+function hit(sphere::MovingSphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+    a = dot(r.direction, r.direction)
+    s2o = r.origin - center(sphere, r.time)
+    b = 2.0 * dot(r.direction, s2o)
+    c = dot(s2o, s2o) - sphere.radius^2
+    D = b^2 - 4*a*c
+    if (D > 0)
+        t1 = (-b - sqrt(D)) / (2.0 * a)
+        if (t1 < t_max && t1 > t_min)
+            p = point_at_parameter(r, t1)
+
+        # @printf(Base.fdio(2), "hit1 = <%f,%f,%f> | t = %f\n",
+        #         p[1],
+        #         p[2],
+        #         p[3],
+        #         t1
+        #         )
+            return HitRecord(t1,
+                              p,
+                             (p - center(sphere, r.time)) / sphere.radius,
+                             sphere.material)
+        end
+        
+        t2 = (-b + sqrt(D)) / (2.0 * a)
+        if (t2 < t_max && t2 > t_min)
+            p = point_at_parameter(r, t2)
+
+        # @printf(Base.fdio(2), "hit2 = <%f,%f,%f> | t = %f\n",
+        #         p[1],
+        #         p[2],
+        #         p[3],
+        #         t2,
+        #         )
+
+            return HitRecord(t2,
+                              p, 
+                             (p - center(sphere, r.time)) / sphere.radius,
+                             sphere.material)
+        end
+    end
+    return nothing
+end
+
 function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     result::Union{HitRecord, Nothing} = nothing
     closest_t = t_max
@@ -262,7 +339,9 @@ function random_scene()::Array{Hitable}
 
             if (norm(center - [4.0, 0.2, 0.0]) > 0.9)
                 if (choose_mat < 0.8) # diffuse
-                    push!(list, Sphere(center, 0.2,
+                    push!(list, MovingSphere(center, center + [0.0, 0.5 * rand(), 0.0], 
+                                             0.0, 1.0,
+                                             0.2,
                                        Lambertian([rand()^2, rand()^2, rand()^2])))
                 elseif (choose_mat < 0.95) #metal
                     push!(list, Sphere(center, 0.2,
@@ -291,8 +370,13 @@ function main()
     lookAt = [4.0, 0.5, 1.0]
     aperture = 0.15
     dist_to_focus = norm(lookFrom - lookAt)
+    lookFrom = [13.0, 2.0, 3.0]
+    lookAt = [0.0, 0.0, 0.0]
+    aperture = 0.0
+    dist_to_focus = 10.0
     camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], 15.0,
-                    convert(Float64, nx) / convert(Float64, ny), aperture, dist_to_focus)
+                    convert(Float64, nx) / convert(Float64, ny), aperture, dist_to_focus,
+                    0.0, 1.0)
 
     R = cos(pi / 4)
     
