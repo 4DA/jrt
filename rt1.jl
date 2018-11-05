@@ -15,6 +15,50 @@ struct Sphere <: AbstractSphere
     material::Material
 end
 
+struct AABB
+    min::Vec3
+    max::Vec3
+end
+
+struct HitableList <: Hitable
+    array::Array{Hitable}
+end
+
+struct BVHNode <: Hitable
+    left::Hitable
+    right::Hitable
+    box::AABB
+
+    function BVHNode(lst::Array{Hitable}, time0::Float64, time1::Float64)
+        sz = length(lst)
+        axis = convert(Int64, floor(3.0 * rand()))
+
+        if axis == 0
+            sort!(lst; lt = boxXCompare)
+        elseif axis == 1
+            sort!(lst; lt = boxYCompare)
+        elseif axis == 2
+            sort!(lst; lt = boxZCompare)
+        end
+
+        if sz == 1
+            left = lst[1]
+            right = lst[1]
+        elseif sz == 2
+            left = lst[1]
+            right = lst[2]
+        else
+            left = BVHNode(lst[1: div(sz, 2)], time0, time1)
+            right = BVHNode(lst[div(sz, 2) + 1: sz], time0, time1)
+        end
+
+        box_left = boundingBox(left, time0, time1)
+        box_right = boundingBox(right, time0, time1)
+        box = surroundingBox(box_left, box_right)
+
+        return new(left, right, box)
+    end
+end
 
 struct MovingSphere <: AbstractSphere
     center0::Vec3
@@ -24,6 +68,40 @@ struct MovingSphere <: AbstractSphere
     radius::Float64
     material::Material
 end
+
+function boxXCompare(x::Hitable, y::Hitable)::Bool
+    box_left = boundingBox(x, 0.0, 0.0)
+    box_right = boundingBox(y, 0.0, 0.0)
+
+    if !(isa(box_left, AABB)) || !(isa(box_right, AABB))
+        @printf(Base.fdio(2), "no bounding box in boxXCompare")
+    end
+
+    return box_left.min[1] < box_right.min[1]
+end
+
+function boxYCompare(x::Hitable, y::Hitable)::Bool
+    box_left = boundingBox(x, 0.0, 0.0)
+    box_right = boundingBox(y, 0.0, 0.0)
+
+    if !(isa(box_left, AABB)) || !(isa(box_right, AABB))
+        @printf(Base.fdio(2), "no bounding box in boxYCompare")
+    end
+
+    return box_left.min[2] < box_right.min[2]
+end
+
+function boxZCompare(x::Hitable, y::Hitable)::Bool
+    box_left = boundingBox(x, 0.0, 0.0)
+    box_right = boundingBox(y, 0.0, 0.0)
+
+    if !(isa(box_left, AABB)) || !(isa(box_right, AABB))
+        @printf(Base.fdio(2), "no bounding box in boxZCompare")
+    end
+
+    return box_left.min[3] < box_right.min[3]
+end
+
 
 function center(s::Sphere, ::Float64)::Vec3
     return s.center
@@ -208,6 +286,79 @@ function point_at_parameter(r::Ray, t::Float64)
     return r.origin + t * r.direction
 end
 
+function boundingBox(sphere::Sphere, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return AABB(sphere.center - [radius, radius, radius], sphere.center + [radius, radius, radius])
+end
+
+function surroundingBox(box0::AABB, box1::AABB)::AABB
+    small = min.(box0.min, box1.min)
+    big = max.(box0.max, box1.max)
+    return AABB(small, big)
+end
+
+function boundingBox(s::Sphere, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return AABB(s.center - [s.radius, s.radius, s.radius], s.center + [s.radius, s.radius, s.radius])
+end
+
+function boundingBox(s::MovingSphere, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    box0 = AABB(center(s, t0) - [s.radius, s.radius, s.radius],
+                center(s, t0) + [s.radius, s.radius, s.radius])
+
+    box1 = AABB(center(s, t1) - [s.radius, s.radius, s.radius],
+                center(s, t1) + [s.radius, s.radius, s.radius])
+
+    return surroundingBox(box0, box1)
+end
+
+function boundingBox(bvh::BVHNode, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return bvh.box
+end
+
+function boundingBox(lst::HitableList, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    if (size(lst) < 1)
+        return nothing
+    end
+
+    box::Union{AABB, Nothing} = nothing
+
+    box = boundingBox(list[1], t0, t1)
+
+    if !isa(temp_box, AABB)
+        return nothing
+    end
+
+    for i = 2:size(lst)
+        temp_box = boundingBox(lst[i], t0, t1)
+        if (isa(temp_box, AABB))
+            box = surroundingBox(box, temp_box)
+        else
+            return nothing
+        end
+    end
+
+    return box
+end
+
+function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
+    for a = 1:3
+        invD = 1.0 / r.direction[a]
+        t0 = (aabb.min[a] - r.origin[a]) * invD
+        t1 = (aabb.max[a] - r.origin[a]) * invD
+
+        if (invD < 0.0)
+            t0, t1 = t1, t0
+        end
+        
+        tmin = t0 > tmin ? t0 : tmin
+        tmax = t1 < tmax ? t1 : tmax
+
+        if (tmax <= tmin)
+            return false
+        end
+    end
+    return true
+end
+
 
 function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     a = dot(r.direction, r.direction)
@@ -311,7 +462,60 @@ function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::
     return result
 end
 
-function color(r::Ray, world::Array{Hitable}, depth::Int64)::Array{Float64}
+function print(s::Sphere, str::String)
+    @printf(Base.fdio(2),
+            "%s: sphere c = <%.1f, %.1f, %.1f>, r = %.1f\n",
+            str,
+            s.center[1], s.center[2], s.center[3],
+            s.radius)
+end
+
+function print(box::AABB, str::String)
+    @printf(Base.fdio(2),
+            "%s: <%.1f, %.1f, %.1f>-<%.1f, %.1f, %.1f>\n",
+            str,
+            box.min[1], box.min[2], box.min[3],
+            box.max[1], box.max[2], box.max[3])
+end
+
+function print(mvs::MovingSphere, str::String)
+    c1 = center(mvs, 0.0)
+    c2 = center(mvs, 1.0)
+
+    @printf(Base.fdio(2),
+            "%s: msphere c1 = <%.1f, %.1f, %.1f>, c2 = <%.1f, %.1f, %.1f>, r = %.1f\n",
+            str,
+            c1[1], c1[2], c1[3],
+            c2[1], c2[2], c2[3],
+            mvs.radius)
+end
+
+
+function hit(node::BVHNode, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+    if hit(node.box, r, t_min, t_max)
+        left_rec = hit(node.left, r, t_min, t_max)
+        right_rec = hit(node.right, r, t_min, t_max)
+
+        if isa(left_rec, HitRecord) && isa(right_rec, HitRecord)
+            # @printf(Base.fdio(2), "hit both\n")
+            if left_rec.t < right_rec.t
+                return left_rec
+            else
+                return right_rec
+            end
+        elseif isa(left_rec, HitRecord)
+            return left_rec
+        elseif isa(right_rec, HitRecord)
+            return right_rec
+        else
+            return nothing
+        end
+    else
+        return nothing
+    end
+end
+
+function color(r::Ray, world::BVHNode, depth::Int64)::Array{Float64}
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
         if (depth < 50)
@@ -328,7 +532,7 @@ function color(r::Ray, world::Array{Hitable}, depth::Int64)::Array{Float64}
     end
 end
 
-function random_scene()::Array{Hitable}
+function random_scene()::BVHNode
     list::Array{Hitable} = []
     push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian([0.5, 0.5, 0.5])))
 
@@ -357,19 +561,15 @@ function random_scene()::Array{Hitable}
     push!(list, Sphere([-4.0, 1.0, 0.0], 1.0,  Lambertian([0.4, 0.2, 0.1])))
     push!(list, Sphere([4.0, 1.0, 0.0], 1.0,  Metal([0.7, 0.6, 0.5])))
 
-    return list
+    return BVHNode(list, 0.0, 1.0)
 end
 
 function main()
-    nx::Int = 200;
-    ny::Int = 100;
-    ns::Int = 50;
+    nx::Int = 600;
+    ny::Int = 400;
+    ns::Int = 5;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    lookFrom = [16.0, 2.0, 3.5]
-    lookAt = [4.0, 0.5, 1.0]
-    aperture = 0.15
-    dist_to_focus = norm(lookFrom - lookAt)
     lookFrom = [13.0, 2.0, 3.0]
     lookAt = [0.0, 0.0, 0.0]
     aperture = 0.0
@@ -380,18 +580,18 @@ function main()
 
     R = cos(pi / 4)
     
-    # world::Array{Hitable} = [
-    #     Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
-    #     Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
-    #     Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
-    #     Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
-    #     Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5)),
+    hitables::Array{Hitable} = [
+        Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
+        Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
+        Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
+        Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
+        Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5)),
 
-    #     # Sphere([-R, 0.0, -1], R, Lambertian([0.0, 0.0, 1.0])),
-    #     # Sphere([R, 0.0, -1], R, Lambertian([1.0, 0.0, 0.0])),
-    # ]
+        # Sphere([-R, 0.0, -1], R, Lambertian([0.0, 0.0, 1.0])),
+        # Sphere([R, 0.0, -1], R, Lambertian([1.0, 0.0, 0.0])),
+    ]
 
-    world::Array{Hitable} = random_scene()
+    world::BVHNode = random_scene()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
