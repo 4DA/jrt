@@ -6,6 +6,7 @@ const Vec3 = Array{Float64, 1}
 
 abstract type Hitable end
 abstract type Material end
+abstract type Texture end
 
 abstract type AbstractSphere <: Hitable end
 
@@ -23,6 +24,30 @@ end
 struct HitableList <: Hitable
     array::Array{Hitable}
 end
+
+struct ConstantTexture <: Texture
+    color::Vec3
+end
+
+function value(texture::ConstantTexture, u::Float64, v::Float64, p::Vec3)
+    return texture.color
+end
+
+struct CheckerTexture <: Texture
+    odd::Texture
+    even::Texture
+end
+
+function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
+    sines = sin(10.0 * p[1]) * sin(10.0 * p[2]) * sin(10.0 * p[3])
+
+    if (sines < 0.0)
+        return value(texture.odd, u, v, p)
+    else
+        return value(texture.even, u, v, p)
+    end
+end
+
 
 struct BVHNode <: Hitable
     left::Hitable
@@ -166,7 +191,7 @@ struct Camera
 end
 
 struct Lambertian <: Material
-    albedo::Vec3
+    albedo::Texture
 end
 
 struct Metal <: Material
@@ -227,7 +252,7 @@ end
 function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
     target = hit.p + hit.normal + random_in_unit_sphere()
     scattered = Ray(hit.p, target - hit.p)
-    return ScatterRecord(scattered, m.albedo)
+    return ScatterRecord(scattered, value(m.albedo, 0.0, 0.0, hit.p))
 end
 
 function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
@@ -534,7 +559,12 @@ end
 
 function random_scene()::BVHNode
     list::Array{Hitable} = []
-    push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian([0.5, 0.5, 0.5])))
+    checker = CheckerTexture(ConstantTexture([0.2, 0.3, 0.1]),
+                             ConstantTexture([0.9, 0.9, 0.9]))
+
+    # push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian(ConstantTexture([0.5, 0.5, 0.5]))))
+
+    push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian(checker)))
 
     for a = -11 : 10
         for b = -11 : 10
@@ -546,7 +576,7 @@ function random_scene()::BVHNode
                     push!(list, MovingSphere(center, center + [0.0, 0.5 * rand(), 0.0], 
                                              0.0, 1.0,
                                              0.2,
-                                       Lambertian([rand()^2, rand()^2, rand()^2])))
+                                       Lambertian(ConstantTexture([rand()^2, rand()^2, rand()^2]))))
                 elseif (choose_mat < 0.95) #metal
                     push!(list, Sphere(center, 0.2,
                                        Metal([0.5 * (1 + rand()),0.5 * (1 + rand()),0.5 * (1 + rand())])))
@@ -558,7 +588,7 @@ function random_scene()::BVHNode
     end
 
     push!(list, Sphere([0.0, 1.0, 0.0], 1.0, Dielectric(1.5)))
-    push!(list, Sphere([-4.0, 1.0, 0.0], 1.0,  Lambertian([0.4, 0.2, 0.1])))
+    push!(list, Sphere([-4.0, 1.0, 0.0], 1.0,  Lambertian(ConstantTexture([0.4, 0.2, 0.1]))))
     push!(list, Sphere([4.0, 1.0, 0.0], 1.0,  Metal([0.7, 0.6, 0.5])))
 
     return BVHNode(list, 0.0, 1.0)
@@ -567,7 +597,7 @@ end
 function main()
     nx::Int = 600;
     ny::Int = 400;
-    ns::Int = 5;
+    ns::Int = 40;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [13.0, 2.0, 3.0]
@@ -581,14 +611,14 @@ function main()
     R = cos(pi / 4)
     
     hitables::Array{Hitable} = [
-        Sphere([0.0, 0.0, -1.0], 0.5, Lambertian([0.1, 0.2, 0.5])),
-        Sphere([0.0, -100.5, -1], 100, Lambertian([0.8, 0.8, 0.0])),
+        Sphere([0.0, 0.0, -1.0], 0.5, Lambertian(ConstantTexture([0.1, 0.2, 0.5]))),
+        Sphere([0.0, -100.5, -1], 100, Lambertian(ConstantTexture([0.8, 0.8, 0.0]))),
         Sphere([1.0, 0.0, -1.0], 0.5, Metal([0.8, 0.6, 0.2])),
         Sphere([-1.0, 0.0, -1], 0.5, Dielectric(1.5)),
         Sphere([-1.0, 0.0, -1], -0.45, Dielectric(1.5)),
 
-        # Sphere([-R, 0.0, -1], R, Lambertian([0.0, 0.0, 1.0])),
-        # Sphere([R, 0.0, -1], R, Lambertian([1.0, 0.0, 0.0])),
+        # Sphere([-R, 0.0, -1], R, Lambertian(ConstantTexture([0.0, 0.0, 1.0]))),
+        # Sphere([R, 0.0, -1], R, Lambertian(ConstantTexture([1.0, 0.0, 0.0]))),
     ]
 
     world::BVHNode = random_scene()
