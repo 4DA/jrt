@@ -557,6 +557,15 @@ function color(r::Ray, world::BVHNode, depth::Int64)::Array{Float64}
     end
 end
 
+function two_spheres()::BVHNode
+    checker = CheckerTexture(ConstantTexture([0.2, 0.3, 0.1]), ConstantTexture([0.9, 0.9, 0.9]))
+    list::Array{Hitable} = []
+    push!(list, Sphere([0.0, -10.0, 0.0], 10.0, Lambertian(checker)))
+    push!(list, Sphere([0.0, 10.0, 0.0], 10.0, Lambertian(checker)))
+
+    return BVHNode(list, 0.0, 1.0)
+end
+
 function random_scene()::BVHNode
     list::Array{Hitable} = []
     checker = CheckerTexture(ConstantTexture([0.2, 0.3, 0.1]),
