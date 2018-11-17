@@ -1,6 +1,7 @@
 using Printf
 using LinearAlgebra
 using Base
+using Random
 
 const Vec3 = Array{Float64, 1}
 
@@ -25,17 +26,59 @@ struct HitableList <: Hitable
     array::Array{Hitable}
 end
 
+
+function generatePermutation()::Array{Int64}
+    p = Array{Float64}(undef, 256)
+    for i = 1:256
+        p[i] = i
+    end
+
+    shuffle!(p)
+    return p
+end
+
+struct Perlin
+    ranfloat::Array{Float64}
+    perm_x::Array{Int64}
+    perm_y::Array{Int64}
+    perm_z::Array{Int64}
+
+    function Perlin()
+        ranfloat = Array{Float64}(undef, 256)
+        perm_x = generatePermutation()
+        perm_y = generatePermutation()
+        perm_z = generatePermutation()
+
+        for i = 1:256
+            ranfloat[i] = rand()
+        end
+
+        return new(ranfloat, perm_x, perm_y, perm_z)
+    end
+end
+
+g_Perlin = Perlin()
+
 struct ConstantTexture <: Texture
     color::Vec3
 end
 
-function value(texture::ConstantTexture, u::Float64, v::Float64, p::Vec3)
-    return texture.color
-end
 
 struct CheckerTexture <: Texture
     odd::Texture
     even::Texture
+end
+
+struct NoiseTexture <: Texture
+    noise::Perlin
+    function NoiseTexture()
+        return new(g_Perlin)
+    end
+end
+
+
+function value(texture::ConstantTexture, u::Float64, v::Float64, p::Vec3)
+    return texture.color
 end
 
 function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
@@ -46,6 +89,10 @@ function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
     else
         return value(texture.even, u, v, p)
     end
+end
+
+function value(texture::NoiseTexture, u::Float64, v::Float64, p::Vec3)
+    return [1.0, 1.0, 1.0] * noise(texture.noise, p)
 end
 
 
@@ -92,6 +139,37 @@ struct MovingSphere <: AbstractSphere
     time1::Float64
     radius::Float64
     material::Material
+end
+
+function trilinear_interp(c::Array{Float64, 3}, u::Float64, v::Float64, w::Float64)
+    accum = 0.0
+
+    for i = 1:2
+        for j = 1:2
+            for k = 1:2
+                accum +=
+                    (i * u + (1.0 - i) * (1.0 - u)) * 
+                    (j * v + (1.0 - j) * (1.0 - v)) * 
+                    (k * w + (1.0 - k) * (1.0 - w)) * c[i,j,k]
+            end
+        end
+    end
+
+    return accum
+end
+
+function noise(n::Perlin, p::Vec3)
+    u = p[1] - floor(p[1])
+    v = p[2] - floor(p[2])
+    w = p[3] - floor(p[3])
+
+    i = mod1(convert(Int64, floor(4.0 * p[1])), 256)
+    j = mod1(convert(Int64, floor(4.0 * p[2])), 256)
+    k = mod1(convert(Int64, floor(4.0 * p[3])), 256)
+
+    # @CHECK
+    idx = (n.perm_x[i] - 1) ⊻ (n.perm_y[j] - 1) ⊻ (n.perm_z[k] - 1) + 1
+    return n.ranfloat[idx]
 end
 
 function boxXCompare(x::Hitable, y::Hitable)::Bool
@@ -566,6 +644,17 @@ function two_spheres()::BVHNode
     return BVHNode(list, 0.0, 1.0)
 end
 
+function two_perlin_spheres()::BVHNode
+    list::Array{Hitable} = []
+
+    pertext = NoiseTexture()
+    push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian(pertext)))
+    push!(list, Sphere([0.0, 2.0, 0.0], 2.0, Lambertian(pertext)))
+
+    return BVHNode(list, 0.0, 1.0)
+end
+
+
 function random_scene()::BVHNode
     list::Array{Hitable} = []
     checker = CheckerTexture(ConstantTexture([0.2, 0.3, 0.1]),
@@ -630,7 +719,8 @@ function main()
         # Sphere([R, 0.0, -1], R, Lambertian(ConstantTexture([1.0, 0.0, 0.0]))),
     ]
 
-    world::BVHNode = random_scene()
+    # world::BVHNode = random_scene()
+    world::BVHNode = two_perlin_spheres()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
