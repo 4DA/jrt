@@ -71,6 +71,7 @@ end
 
 struct NoiseTexture <: Texture
     noise::Perlin
+
     function NoiseTexture()
         return new(g_Perlin)
     end
@@ -163,6 +164,11 @@ function noise(n::Perlin, p::Vec3)
     u = p[1] - floor(p[1])
     v = p[2] - floor(p[2])
     w = p[3] - floor(p[3])
+
+    # hermite cubic
+    u = u^2 * (3.0 - 2.0 * u)
+    v = v^2 * (3.0 - 2.0 * v)
+    w = w^2 * (3.0 - 2.0 * w)
 
     i = convert(Int64, floor(p[1]))
     j = convert(Int64, floor(p[2]))
