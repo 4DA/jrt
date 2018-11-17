@@ -71,9 +71,10 @@ end
 
 struct NoiseTexture <: Texture
     noise::Perlin
+    scale::Float64
 
     function NoiseTexture()
-        return new(g_Perlin)
+        return new(g_Perlin, 5)
     end
 end
 
@@ -93,7 +94,7 @@ function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
 end
 
 function value(texture::NoiseTexture, u::Float64, v::Float64, p::Vec3)
-    return [1.0, 1.0, 1.0] * noise(texture.noise, p)
+    return [1.0, 1.0, 1.0] * noise(texture.noise, texture.scale * p)
 end
 
 
