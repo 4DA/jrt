@@ -144,13 +144,14 @@ end
 function trilinear_interp(c::Array{Float64, 3}, u::Float64, v::Float64, w::Float64)
     accum = 0.0
 
-    for i = 1:2
-        for j = 1:2
-            for k = 1:2
+    # @check
+    for i = 0:1
+        for j = 0:1
+            for k = 0:1
                 accum +=
                     (i * u + (1.0 - i) * (1.0 - u)) * 
                     (j * v + (1.0 - j) * (1.0 - v)) * 
-                    (k * w + (1.0 - k) * (1.0 - w)) * c[i,j,k]
+                    (k * w + (1.0 - k) * (1.0 - w)) * c[i+1, j+1, k+1]
             end
         end
     end
@@ -163,13 +164,26 @@ function noise(n::Perlin, p::Vec3)
     v = p[2] - floor(p[2])
     w = p[3] - floor(p[3])
 
-    i = mod1(convert(Int64, floor(4.0 * p[1])), 256)
-    j = mod1(convert(Int64, floor(4.0 * p[2])), 256)
-    k = mod1(convert(Int64, floor(4.0 * p[3])), 256)
+    i = convert(Int64, floor(p[1]))
+    j = convert(Int64, floor(p[2]))
+    k = convert(Int64, floor(p[3]))
 
-    # @CHECK
-    idx = (n.perm_x[i] - 1) ⊻ (n.perm_y[j] - 1) ⊻ (n.perm_z[k] - 1) + 1
-    return n.ranfloat[idx]
+    c = Array{Float64, 3}(undef, 2, 2, 2)
+
+    for di = 1:2
+        for dj = 1:2
+            for dk = 1:2
+                ni = mod1(i + di - 1, 256)
+                nj = mod1(j + dj - 1, 256)
+                nk = mod1(k + dk - 1, 256)
+                # @CHECK index calculation
+                idx = (n.perm_x[ni] - 1) ⊻ (n.perm_y[nj] - 1) ⊻ (n.perm_z[nk] - 1) + 1
+                c[di,dj,dk] = n.ranfloat[idx]
+            end
+        end
+    end
+
+    return trilinear_interp(c, u, v, w)
 end
 
 function boxXCompare(x::Hitable, y::Hitable)::Bool
