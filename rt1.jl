@@ -27,6 +27,10 @@ struct HitableList <: Hitable
 end
 
 
+function normalize(v::Vec3)::Vec3
+    return v / norm(v)
+end
+
 function generatePermutation()::Array{Int64}
     p = Array{Float64}(undef, 256)
     for i = 1:256
@@ -38,22 +42,22 @@ function generatePermutation()::Array{Int64}
 end
 
 struct Perlin
-    ranfloat::Array{Float64}
+    ranvec::Array{Vec3}
     perm_x::Array{Int64}
     perm_y::Array{Int64}
     perm_z::Array{Int64}
 
     function Perlin()
-        ranfloat = Array{Float64}(undef, 256)
+        ranvec = Array{Vec3, 1}(undef, 256)
         perm_x = generatePermutation()
         perm_y = generatePermutation()
         perm_z = generatePermutation()
 
         for i = 1:256
-            ranfloat[i] = rand()
+            ranvec[i] = normalize([-1.0, -1.0, -1.0] + 2 * [rand(), rand(), rand()])
         end
 
-        return new(ranfloat, perm_x, perm_y, perm_z)
+        return new(ranvec, perm_x, perm_y, perm_z)
     end
 end
 
@@ -77,7 +81,6 @@ struct NoiseTexture <: Texture
         return new(g_Perlin, 5)
     end
 end
-
 
 function value(texture::ConstantTexture, u::Float64, v::Float64, p::Vec3)
     return texture.color
@@ -143,54 +146,38 @@ struct MovingSphere <: AbstractSphere
     material::Material
 end
 
-function trilinear_interp(c::Array{Float64, 3}, u::Float64, v::Float64, w::Float64)
-    accum = 0.0
+function noise_f(t::Float64)::Float64
+    t = abs(t)
 
-    # @check
-    for i = 0:1
-        for j = 0:1
-            for k = 0:1
-                accum +=
-                    (i * u + (1.0 - i) * (1.0 - u)) * 
-                    (j * v + (1.0 - j) * (1.0 - v)) * 
-                    (k * w + (1.0 - k) * (1.0 - w)) * c[i+1, j+1, k+1]
-            end
-        end
+    if t < 1.0
+        return 1.0 - ( 3.0 - 2.0 * t ) * t * t;
+    else
+        return 0.0
     end
-
-    return accum
 end
 
-function noise(n::Perlin, p::Vec3)
-    u = p[1] - floor(p[1])
-    v = p[2] - floor(p[2])
-    w = p[3] - floor(p[3])
+function surflet(p::Vec3, grad::Vec3)
+    return noise_f(p[1]) * noise_f(p[2]) * noise_f(p[3]) * dot(p, grad)
+end
 
-    # hermite cubic
-    u = u^2 * (3.0 - 2.0 * u)
-    v = v^2 * (3.0 - 2.0 * v)
-    w = w^2 * (3.0 - 2.0 * w)
+function noise(n::Perlin, p::Vec3)::Float64
+    result = 0.0
+    cell = convert.(Int64, floor.(p))
 
-    i = convert(Int64, floor(p[1]))
-    j = convert(Int64, floor(p[2]))
-    k = convert(Int64, floor(p[3]))
+    c = Array{Vec3, 3}(undef, 2, 2, 2)
 
-    c = Array{Float64, 3}(undef, 2, 2, 2)
+    for grid_z = cell[3]:(cell[3]+1)
+        for grid_y = cell[2]:(cell[2]+1)
+            for grid_x = cell[1]:(cell[1]+1)
+                hash = (n.perm_x[mod1(grid_x,256)] - 1) ⊻ (n.perm_y[mod1(grid_y,256)] - 1) ⊻
+                    (n.perm_z[mod1(grid_z, 256)] - 1) + 1
 
-    for di = 1:2
-        for dj = 1:2
-            for dk = 1:2
-                ni = mod1(i + di - 1, 256)
-                nj = mod1(j + dj - 1, 256)
-                nk = mod1(k + dk - 1, 256)
-                # @CHECK index calculation
-                idx = (n.perm_x[ni] - 1) ⊻ (n.perm_y[nj] - 1) ⊻ (n.perm_z[nk] - 1) + 1
-                c[di,dj,dk] = n.ranfloat[idx]
+                result += surflet(p - [grid_x, grid_y, grid_z], n.ranvec[hash])
             end
         end
     end
 
-    return trilinear_interp(c, u, v, w)
+    return (result + 1.0) / 2.0
 end
 
 function boxXCompare(x::Hitable, y::Hitable)::Bool
@@ -302,10 +289,6 @@ end
 
 struct Dielectric <: Material
     ref_idx::Float64
-end
-
-function normalize(v::Vec3)::Vec3
-    return v / norm(v)
 end
 
 function random_in_unit_sphere()
@@ -755,6 +738,11 @@ function main()
             end
 
             col /= convert(Float64, ns)
+            if (col[1] < 0.0 || col[2] < 0.0 || col[3] < 0.0)
+                @printf(Base.fdio(2), "negative color: <%f, %f, %f>, exiting \n",
+                        col[1], col[2], col[3])
+                return
+            end
             col = sqrt.(col)
                     
             ir::Int = trunc(255.99 * col[1])
