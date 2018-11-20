@@ -97,7 +97,8 @@ function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
 end
 
 function value(texture::NoiseTexture, u::Float64, v::Float64, p::Vec3)
-    return [1.0, 1.0, 1.0] * noise(texture.noise, texture.scale * p)
+    return [1.0, 1.0, 1.0] * 0.5 *
+        (1.0 + sin(texture.scale * p[3] + 10.0 * turb(texture.noise, p , 11)))
 end
 
 
@@ -158,6 +159,20 @@ end
 
 function surflet(p::Vec3, grad::Vec3)
     return noise_f(p[1]) * noise_f(p[2]) * noise_f(p[3]) * dot(p, grad)
+end
+
+function turb(n::Perlin, p::Vec3, depth::Int64)::Float64
+    accum = 0.0
+    weight = 1.0
+    temp_p = p
+
+    for i = 1:depth
+        accum += weight * noise(n, temp_p)
+        weight *= 0.5
+        temp_p *= 2
+    end
+
+    return abs(accum)
 end
 
 function noise(n::Perlin, p::Vec3)::Float64
@@ -698,8 +713,8 @@ end
 
 function main()
     nx::Int = 600;
-    ny::Int = 400;
-    ns::Int = 40;
+    ny::Int = 300;
+    ns::Int = 20;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [13.0, 2.0, 3.0]
@@ -744,6 +759,7 @@ function main()
                 return
             end
             col = sqrt.(col)
+            col = clamp.(col, 0.0, 1.0)
                     
             ir::Int = trunc(255.99 * col[1])
             ig::Int = trunc(255.99 * col[2])
