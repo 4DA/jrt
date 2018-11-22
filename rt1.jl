@@ -2,6 +2,10 @@ using Printf
 using LinearAlgebra
 using Base
 using Random
+using Images
+using ColorTypes
+using FileIO
+using Colors
 
 const Vec3 = Array{Float64, 1}
 
@@ -82,11 +86,25 @@ struct NoiseTexture <: Texture
     end
 end
 
+struct ImageTexture <: Texture
+    data::Array{RGB{N0f8},2}
+    nx::Int64
+    ny::Int64
+
+    function ImageTexture(data::Array{RGB{N0f8},2})
+        return new(data, size(data)[1], size(data)[2])
+    end
+
+    function ImageTexture(data::Array{RGBA{N0f8},2})
+        return new(convert.(RGB, data), size(data)[1], size(data)[2])
+    end
+end
+
 function value(texture::ConstantTexture, u::Float64, v::Float64, p::Vec3)
     return texture.color
 end
 
-function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
+function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)::Vec3
     sines = sin(10.0 * p[1]) * sin(10.0 * p[2]) * sin(10.0 * p[3])
 
     if (sines < 0.0)
@@ -96,9 +114,23 @@ function value(texture::CheckerTexture, u::Float64, v::Float64, p::Vec3)
     end
 end
 
-function value(texture::NoiseTexture, u::Float64, v::Float64, p::Vec3)
+function value(texture::NoiseTexture, u::Float64, v::Float64, p::Vec3)::Vec3
     return [1.0, 1.0, 1.0] * 0.5 *
         (1.0 + sin(texture.scale * p[3] + 10.0 * turb(texture.noise, p , 11)))
+end
+
+function value(texture::ImageTexture, u::Float64, v::Float64, p::Vec3)::Vec3
+    i = convert(Int64, floor(u * texture.nx)) + 1
+    j = convert(Int64, floor((1.0 - v) * texture.ny - 0.001)) + 1
+
+    i = clamp(i, 1, texture.nx)
+    j = clamp(j, 1, texture.ny)
+
+    r = red(texture.data[i, j])
+    g = green(texture.data[i, j])
+    b = blue(texture.data[i, j])
+
+    return convert.(Float64, [r, g, b])
 end
 
 
@@ -254,6 +286,8 @@ struct HitRecord
     p::Vec3
     normal::Vec3
     material::Material
+    u::Float64
+    v::Float64
 end
 
 struct ScatterRecord
@@ -349,7 +383,7 @@ end
 function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
     target = hit.p + hit.normal + random_in_unit_sphere()
     scattered = Ray(hit.p, target - hit.p)
-    return ScatterRecord(scattered, value(m.albedo, 0.0, 0.0, hit.p))
+    return ScatterRecord(scattered, value(m.albedo, hit.u, hit.v, hit.p))
 end
 
 function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
@@ -481,6 +515,13 @@ function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
     return true
 end
 
+function get_sphere_uv(p::Vec3)::Tuple{Float64, Float64}
+    phi = atan(p[3], p[1])
+    theta = asin(p[2])
+    u = 1.0 - (phi + pi) / (2.0 * pi)
+    v = (theta + pi / 2.0) / pi
+    return (u,v)
+end
 
 function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     a = dot(r.direction, r.direction)
@@ -499,10 +540,11 @@ function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitR
         #         p[3],
         #         t1
         #         )
+            u, v = get_sphere_uv((p - sphere.center) / sphere.radius)
             return HitRecord(t1,
                               p,
                              (p - sphere.center) / sphere.radius,
-                             sphere.material)
+                             sphere.material, u, v)
         end
         
         t2 = (-b + sqrt(D)) / (2.0 * a)
@@ -515,11 +557,11 @@ function hit(sphere::Sphere, r::Ray, t_min::Float64, t_max::Float64)::Union{HitR
         #         p[3],
         #         t2,
         #         )
-
+            u, v = get_sphere_uv((p - sphere.center) / sphere.radius)
             return HitRecord(t2,
                               p, 
                              (p - sphere.center) / sphere.radius,
-                             sphere.material)
+                             sphere.material, u, v)
         end
     end
     return nothing
@@ -663,6 +705,14 @@ function two_spheres()::BVHNode
     return BVHNode(list, 0.0, 1.0)
 end
 
+function sphere_textured()::BVHNode
+    imgT = ImageTexture(load("earth.png"))
+    list::Array{Hitable} = []
+    push!(list, Sphere([0.0, 0.0, 0.0], 2.0, Lambertian(imgT)))
+
+    return BVHNode(list, 0.0, 1.0)
+end
+
 function two_perlin_spheres()::BVHNode
     list::Array{Hitable} = []
 
@@ -738,8 +788,9 @@ function main()
         # Sphere([R, 0.0, -1], R, Lambertian(ConstantTexture([1.0, 0.0, 0.0]))),
     ]
 
-    # world::BVHNode = random_scene()
-    world::BVHNode = two_perlin_spheres()
+    world::BVHNode = random_scene()
+    # world::BVHNode = two_spheres()
+    # world::BVHNode = sphere_textured()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
