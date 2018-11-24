@@ -213,7 +213,9 @@ struct YZRect <: Hitable
     material::Material
 end
 
-
+struct FlipNormals <: Hitable
+    ptr::Hitable
+end
 
 function noise_f(t::Float64)::Float64
     t = abs(t)
@@ -317,7 +319,7 @@ struct Ray
     Ray(origin, direction) = new(origin, direction, 0.0)
 end
 
-struct HitRecord
+mutable struct HitRecord
     t::Float64
     p::Vec3
     normal::Vec3
@@ -559,6 +561,10 @@ function boundingBox(rect::YZRect, t0::Float64, t1::Float64)::Union{AABB, Nothin
     return AABB([rect.k - 0.0001, rect.y0, rect.z0], [rect.k + 0.0001, rect.y1, rect.z1])
 end
 
+function boundingBox(fn::FlipNormals, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return boundingBox(fn.ptr, t0, t1)
+end
+
 
 function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
     for a = 1:3
@@ -740,6 +746,16 @@ function hit(rect::YZRect, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, N
     
 end
 
+function hit(fn::FlipNormals, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothing}
+    rec = hit(fn.ptr, r, t0, t1)
+    if (isa(rec, HitRecord))
+        rec.normal = -rec.normal
+        return rec
+    end
+
+    return nothing
+end
+
 
 function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     result::Union{HitRecord, Nothing} = nothing
@@ -872,13 +888,12 @@ function cornell_box()::BVHNode
     green = Lambertian(ConstantTexture([0.12, 0.45, 0.15]))
     light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
     
-    push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green))
+    push!(list, FlipNormals(YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green)))
     push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 0.0, red))
-
     push!(list, XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light))
-
-    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0, white))
-    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 555.0,  white))
+    push!(list, FlipNormals(XZRect(0.0, 555.0, 0.0, 555.0, 555.0, white)))
+    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
+    push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
 
     return BVHNode(list, 0.0, 1.0)    
 end
