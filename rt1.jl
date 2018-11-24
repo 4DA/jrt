@@ -217,6 +217,27 @@ struct FlipNormals <: Hitable
     ptr::Hitable
 end
 
+struct Box <: Hitable
+    pmin::Vec3
+    pmax::Vec3
+    list::Hitable
+
+    function Box(p0::Vec3, p1::Vec3, material::Material)
+        list::Array{Hitable} = []
+
+        push!(list,             XYRect(p0[1], p1[1], p0[2], p1[2], p1[3], material))
+        push!(list, FlipNormals(XYRect(p0[1], p1[1], p0[2], p1[2], p0[3], material)))
+
+        push!(list,             XZRect(p0[1], p1[1], p0[3], p1[3], p1[2], material))
+        push!(list, FlipNormals(XZRect(p0[1], p1[1], p0[3], p1[3], p0[2], material)))
+
+        push!(list,             YZRect(p0[2], p1[2], p0[3], p1[3], p1[1], material))
+        push!(list, FlipNormals(YZRect(p0[2], p1[2], p0[3], p1[3], p0[1], material)))
+
+        return new(p0, p1, BVHNode(list, 0.0, 1.0))
+    end
+end
+
 function noise_f(t::Float64)::Float64
     t = abs(t)
 
@@ -565,6 +586,12 @@ function boundingBox(fn::FlipNormals, t0::Float64, t1::Float64)::Union{AABB, Not
     return boundingBox(fn.ptr, t0, t1)
 end
 
+function boundingBox(box::Box, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return AABB(box.pmin, box.pmax)
+end
+
+
+
 
 function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
     for a = 1:3
@@ -756,6 +783,9 @@ function hit(fn::FlipNormals, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord
     return nothing
 end
 
+function hit(box::Box, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothing}
+    return hit(box.list, r, t0, t1)
+end
 
 function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     result::Union{HitRecord, Nothing} = nothing
@@ -895,6 +925,9 @@ function cornell_box()::BVHNode
     push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
     push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
 
+    push!(list, Box([130.0, 0.0, 65.0], [295.0, 165.0, 230.0], white))
+    push!(list, Box([265.0, 0.0, 295.0], [430.0, 330.0, 460.0], white))
+
     return BVHNode(list, 0.0, 1.0)    
 end
 
@@ -939,7 +972,7 @@ end
 function main()
     nx::Int = 600;
     ny::Int = 300;
-    ns::Int = 200;
+    ns::Int = 20;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [278.0, 278.0, -800.0]
