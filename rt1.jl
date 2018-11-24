@@ -30,6 +30,13 @@ struct HitableList <: Hitable
     array::Array{Hitable}
 end
 
+struct DiffuseLight <: Material
+    emit::Texture
+end
+
+function emitted(light::DiffuseLight, u::Float64, v::Float64, p::Vec3)::Vec3
+    return value(light.emit, u, v, p)
+end
 
 function normalize(v::Vec3)::Vec3
     return v / norm(v)
@@ -176,6 +183,15 @@ struct MovingSphere <: AbstractSphere
     time0::Float64
     time1::Float64
     radius::Float64
+    material::Material
+end
+
+struct XYRect <: Hitable
+    x0::Float64
+    x1::Float64
+    y0::Float64
+    y1::Float64
+    k::Float64
     material::Material
 end
 
@@ -329,6 +345,10 @@ struct Lambertian <: Material
     albedo::Texture
 end
 
+function emitted(m::Lambertian, u::Float64, v::Float64, p::Vec3)::Vec3
+    return [0.0, 0.0, 0.0]
+end
+
 struct Metal <: Material
     albedo::Vec3
     fuzz::Float64
@@ -336,9 +356,18 @@ struct Metal <: Material
     Metal(a) = new(a, 0.0)
 end
 
+function emitted(m::Metal, u::Float64, v::Float64, p::Vec3)::Vec3
+    return [0.0, 0.0, 0.0]
+end
+
 struct Dielectric <: Material
     ref_idx::Float64
 end
+
+function emitted(m::Dielectric, u::Float64, v::Float64, p::Vec3)::Vec3
+    return [0.0, 0.0, 0.0]
+end
+
 
 function random_in_unit_sphere()
     p::Vec3 = [0.0, 0.0, 0.0]
@@ -428,6 +457,9 @@ function scatter(d::Dielectric, r_in::Ray, hit::HitRecord)::Union{ScatterRecord,
     end
 end
 
+function scatter(l::DiffuseLight, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
+    return nothing
+end
 
 function getRay(c::Camera, s::Float64, t::Float64)::Ray
     rd = c.lens_radius * random_in_unit_disk()
@@ -494,6 +526,11 @@ function boundingBox(lst::HitableList, t0::Float64, t1::Float64)::Union{AABB, No
 
     return box
 end
+
+function boundingBox(rect::XYRect, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return AABB([rect.x0, rect.y0, rect.k - 0.0001], [rect.x1, rect.y1, rect.k + 0.0001])
+end
+
 
 function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
     for a = 1:3
@@ -611,6 +648,29 @@ function hit(sphere::MovingSphere, r::Ray, t_min::Float64, t_max::Float64)::Unio
     return nothing
 end
 
+
+function hit(rect::XYRect, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothing}
+    t = (rect.k - r.origin[3]) / r.direction[3]
+    
+    if (t < t0 || t > t1)
+        return nothing
+    end
+
+    x = r.origin[1] + t * r.direction[1]
+    y = r.origin[2] + t * r.direction[2]
+
+    if (x < rect.x0 || x > rect.x1 || y < rect.y0 || y > rect.y1)
+        return nothing
+    end
+
+    return HitRecord(t, point_at_parameter(r, t), [0.0, 0.0, 1.0], rect.material,
+                     (x - rect.x0) / (rect.x1 - rect.x0), # u
+                     (y - rect.y0) / (rect.y1 - rect.y0), # v
+                     )
+    
+end
+
+
 function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     result::Union{HitRecord, Nothing} = nothing
     closest_t = t_max
@@ -682,17 +742,16 @@ end
 function color(r::Ray, world::BVHNode, depth::Int64)::Array{Float64}
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
+        emission = emitted(hitres.material, hitres.u, hitres.v, hitres.p)
         if (depth < 50)
             scatterRes = scatter(hitres.material, r, hitres)
             if (isa(scatterRes, ScatterRecord))
-                return scatterRes.attenuation .* color(scatterRes.ray, world, depth + 1)
+                return emission + scatterRes.attenuation .* color(scatterRes.ray, world, depth + 1)
             end
         end
-        return [0.0, 0.0, 0.0]
+        return emission
     else
-        u = r.direction / norm(r.direction)
-        t = 0.5 * (u[2] + 1.0)
-        return (1.0 - t) * [1.0, 1.0, 1.0] + t * [0.5, 0.7, 1.0]
+        return [0.0, 0.0, 0.0]
     end
 end
 
@@ -721,6 +780,18 @@ function two_perlin_spheres()::BVHNode
     push!(list, Sphere([0.0, 2.0, 0.0], 2.0, Lambertian(pertext)))
 
     return BVHNode(list, 0.0, 1.0)
+end
+
+function simple_light()::BVHNode
+    list::Array{Hitable} = []
+
+    pertext = NoiseTexture()
+    push!(list, Sphere([0.0, -1000.0, 0.0], 1000.0, Lambertian(pertext)))
+    push!(list, Sphere([0.0, 2.0, 0.0], 2.0, Lambertian(pertext)))
+    push!(list, Sphere([0.0, 7.0, 0.0], 2.0, DiffuseLight(ConstantTexture([4.0, 4.0, 4.0]))))
+    push!(list, XYRect(3.0, 5.0, 1.0, 3.0, -2.0, DiffuseLight(ConstantTexture([4.0, 4.0, 4.0]))))
+
+    return BVHNode(list, 0.0, 1.0)    
 end
 
 
@@ -762,9 +833,9 @@ function random_scene()::BVHNode
 end
 
 function main()
-    nx::Int = 600;
-    ny::Int = 300;
-    ns::Int = 20;
+    nx::Int = 400;
+    ny::Int = 200;
+    ns::Int = 10;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [13.0, 2.0, 3.0]
@@ -788,9 +859,10 @@ function main()
         # Sphere([R, 0.0, -1], R, Lambertian(ConstantTexture([1.0, 0.0, 0.0]))),
     ]
 
-    world::BVHNode = random_scene()
+    # world::BVHNode = random_scene()
     # world::BVHNode = two_spheres()
     # world::BVHNode = sphere_textured()
+    world::BVHNode = simple_light()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
