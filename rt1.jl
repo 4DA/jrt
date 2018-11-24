@@ -195,6 +195,26 @@ struct XYRect <: Hitable
     material::Material
 end
 
+struct XZRect <: Hitable
+    x0::Float64
+    x1::Float64
+    z0::Float64
+    z1::Float64
+    k::Float64
+    material::Material
+end
+
+struct YZRect <: Hitable
+    y0::Float64
+    y1::Float64
+    z0::Float64
+    z1::Float64
+    k::Float64
+    material::Material
+end
+
+
+
 function noise_f(t::Float64)::Float64
     t = abs(t)
 
@@ -531,6 +551,14 @@ function boundingBox(rect::XYRect, t0::Float64, t1::Float64)::Union{AABB, Nothin
     return AABB([rect.x0, rect.y0, rect.k - 0.0001], [rect.x1, rect.y1, rect.k + 0.0001])
 end
 
+function boundingBox(rect::XZRect, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return AABB([rect.x0, rect.k - 0.0001, rect.z0], [rect.x1, rect.k + 0.0001, rect.z1])
+end
+
+function boundingBox(rect::YZRect, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return AABB([rect.k - 0.0001, rect.y0, rect.z0], [rect.k + 0.0001, rect.y1, rect.z1])
+end
+
 
 function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
     for a = 1:3
@@ -670,6 +698,48 @@ function hit(rect::XYRect, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, N
     
 end
 
+function hit(rect::XZRect, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothing}
+    t = (rect.k - r.origin[2]) / r.direction[2]
+    
+    if (t < t0 || t > t1)
+        return nothing
+    end
+
+    x = r.origin[1] + t * r.direction[1]
+    z = r.origin[3] + t * r.direction[3]
+
+    if (x < rect.x0 || x > rect.x1 || z < rect.z0 || z > rect.z1)
+        return nothing
+    end
+
+    return HitRecord(t, point_at_parameter(r, t), [0.0, 1.0, 0.0], rect.material,
+                     (x - rect.x0) / (rect.x1 - rect.x0), # u
+                     (z - rect.z0) / (rect.z1 - rect.z0), # v
+                     )
+    
+end
+
+function hit(rect::YZRect, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothing}
+    t = (rect.k - r.origin[1]) / r.direction[1]
+    
+    if (t < t0 || t > t1)
+        return nothing
+    end
+
+    y = r.origin[2] + t * r.direction[2]
+    z = r.origin[3] + t * r.direction[3]
+
+    if (y < rect.y0 || y > rect.y1 || z < rect.z0 || z > rect.z1)
+        return nothing
+    end
+
+    return HitRecord(t, point_at_parameter(r, t), [1.0, 0.0, 0.0], rect.material,
+                     (y - rect.y0) / (rect.y1 - rect.y0), # u
+                     (z - rect.z0) / (rect.z1 - rect.z0), # v
+                     )
+    
+end
+
 
 function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     result::Union{HitRecord, Nothing} = nothing
@@ -794,6 +864,25 @@ function simple_light()::BVHNode
     return BVHNode(list, 0.0, 1.0)    
 end
 
+function cornell_box()::BVHNode
+    list::Array{Hitable} = []
+
+    red = Lambertian(ConstantTexture([0.65, 0.05, 0.05]))
+    white = Lambertian(ConstantTexture([0.73, 0.73, 0.73]))
+    green = Lambertian(ConstantTexture([0.12, 0.45, 0.15]))
+    light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
+    
+    push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green))
+    push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 0.0, red))
+
+    push!(list, XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light))
+
+    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0, white))
+    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 555.0,  white))
+
+    return BVHNode(list, 0.0, 1.0)    
+end
+
 
 function random_scene()::BVHNode
     list::Array{Hitable} = []
@@ -833,16 +922,17 @@ function random_scene()::BVHNode
 end
 
 function main()
-    nx::Int = 400;
-    ny::Int = 200;
-    ns::Int = 10;
+    nx::Int = 600;
+    ny::Int = 300;
+    ns::Int = 200;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    lookFrom = [13.0, 2.0, 3.0]
-    lookAt = [0.0, 0.0, 0.0]
+    lookFrom = [278.0, 278.0, -800.0]
+    lookAt = [278.0, 278.0, 0.0]
     aperture = 0.0
     dist_to_focus = 10.0
-    camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], 15.0,
+    vfov = 40.0
+    camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], vfov,
                     convert(Float64, nx) / convert(Float64, ny), aperture, dist_to_focus,
                     0.0, 1.0)
 
@@ -862,7 +952,8 @@ function main()
     # world::BVHNode = random_scene()
     # world::BVHNode = two_spheres()
     # world::BVHNode = sphere_textured()
-    world::BVHNode = simple_light()
+    # world::BVHNode = simple_light()
+    world::BVHNode = cornell_box()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
