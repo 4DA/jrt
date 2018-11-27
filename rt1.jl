@@ -38,6 +38,55 @@ function emitted(light::DiffuseLight, u::Float64, v::Float64, p::Vec3)::Vec3
     return value(light.emit, u, v, p)
 end
 
+struct RotateY <: Hitable
+    sin_t::Float64
+    cos_t::Float64
+    box::AABB
+    ptr::Hitable
+
+    function RotateY(p::Hitable, angle::Float64)
+        radians = pi / 180.0 * angle
+        sin_t = sin(radians)
+        cos_t = cos(radians)
+        box = boundingBox(p, 0.0, 1.0)
+        tmax = typemax(Float64)
+        tmin = typemin(Float64)
+        min = [tmax, tmax, tmax]
+        max = [tmin, tmin, tmin]
+
+        for i = 0.0:1.0:1.0
+            for j = 0.0:1.0:1.0
+                for k = 0.0:1.0:1.0
+                    x = i * box.max[1] + (1.0 - i) * box.min[1]
+                    y = j * box.max[2] + (1.0 - j) * box.min[2]
+                    z = k * box.max[3] + (1.0 - k) * box.min[3]
+                    newx = cos_t * x + sin_t * z
+                    newz = -sin_t * x + cos_t * z
+
+                    tester = [newx, y, newz]
+                    for c = 1:3
+                        if (tester[c] > max[c])
+                            max[c] = tester[c]
+                        end
+
+                        if (tester[c] < min[c])
+                            min[c] = tester[c]
+                        end
+                    end
+
+                    @printf(Base.fdio(2), "ijk: %f, %f, %f\n", i, j, k)
+                end
+            end
+        end
+
+        aabb = AABB(min, max)
+        print(aabb, "RotationY: ")
+
+        return new(sin_t, cos_t, AABB(min, max), p)
+    end
+end
+
+
 function normalize(v::Vec3)::Vec3
     return v / norm(v)
 end
@@ -340,7 +389,7 @@ struct Ray
     Ray(origin, direction) = new(origin, direction, 0.0)
 end
 
-mutable struct HitRecord
+struct HitRecord
     t::Float64
     p::Vec3
     normal::Vec3
@@ -590,6 +639,9 @@ function boundingBox(box::Box, t0::Float64, t1::Float64)::Union{AABB, Nothing}
     return AABB(box.pmin, box.pmax)
 end
 
+function boundingBox(ty::RotateY, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return ty.box
+end
 
 
 
@@ -776,8 +828,7 @@ end
 function hit(fn::FlipNormals, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothing}
     rec = hit(fn.ptr, r, t0, t1)
     if (isa(rec, HitRecord))
-        rec.normal = -rec.normal
-        return rec
+        return HitRecord(rec.t, rec.p, -rec.normal, rec.material, rec.u, rec.v)
     end
 
     return nothing
@@ -800,6 +851,31 @@ function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::
     end
 
     return result
+end
+
+function hit(ry::RotateY, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+    origin = r.origin
+    direction = r.direction
+    origin[1] = ry.cos_t * r.origin[1] - ry.sin_t * r.origin[3]
+    origin[3] = ry.sin_t * r.origin[1] + ry.cos_t * r.origin[3]
+    direction[1] = ry.cos_t * r.direction[1] - ry.sin_t * r.direction[3]
+    direction[3] = ry.sin_t * r.direction[1] + ry.cos_t * r.direction[3]
+    rotated_r = Ray(origin, direction, r.time)
+
+    rec = hit(ry.ptr, rotated_r, t_min, t_max)
+
+    if (isa(rec, HitRecord))
+        p = rec.p
+        normal = rec.normal
+        p[1] = ry.cos_t * rec.p[1] + ry.sin_t * rec.p[3]
+        p[3] = -ry.sin_t * rec.p[1] + ry.cos_t * rec.p[3]
+        normal[1] = ry.cos_t * rec.normal[1] + ry.sin_t * rec.normal[3]
+        normal[3] = -ry.sin_t * rec.normal[1] + ry.cos_t * rec.normal[3]
+        return HitRecord(rec.t, p, normal, rec.material, rec.u, rec.v)
+    end
+    return nothing
+
+    
 end
 
 function print(s::Sphere, str::String)
@@ -925,8 +1001,8 @@ function cornell_box()::BVHNode
     push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
     push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
 
-    push!(list, Box([130.0, 0.0, 65.0], [295.0, 165.0, 230.0], white))
-    push!(list, Box([265.0, 0.0, 295.0], [430.0, 330.0, 460.0], white))
+    push!(list, RotateY(Box([130.0, 0.0, 65.0], [295.0, 165.0, 230.0], white), -18.0))
+    # push!(list, RotateY(Box([265.0, 0.0, 295.0], [430.0, 330.0, 460.0], white), 15.0))
 
     return BVHNode(list, 0.0, 1.0)    
 end
@@ -970,9 +1046,9 @@ function random_scene()::BVHNode
 end
 
 function main()
-    nx::Int = 600;
-    ny::Int = 300;
-    ns::Int = 20;
+    nx::Int = 400;
+    ny::Int = 200;
+    ns::Int = 50;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [278.0, 278.0, -800.0]
