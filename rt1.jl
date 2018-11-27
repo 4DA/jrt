@@ -854,8 +854,8 @@ function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::
 end
 
 function hit(ry::RotateY, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
-    origin = r.origin
-    direction = r.direction
+    origin = copy(r.origin)
+    direction = copy(r.direction)
     origin[1] = ry.cos_t * r.origin[1] - ry.sin_t * r.origin[3]
     origin[3] = ry.sin_t * r.origin[1] + ry.cos_t * r.origin[3]
     direction[1] = ry.cos_t * r.direction[1] - ry.sin_t * r.direction[3]
@@ -873,9 +873,8 @@ function hit(ry::RotateY, r::Ray, t_min::Float64, t_max::Float64)::Union{HitReco
         normal[3] = -ry.sin_t * rec.normal[1] + ry.cos_t * rec.normal[3]
         return HitRecord(rec.t, p, normal, rec.material, rec.u, rec.v)
     end
-    return nothing
 
-    
+    return nothing
 end
 
 function print(s::Sphere, str::String)
