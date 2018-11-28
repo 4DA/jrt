@@ -38,6 +38,11 @@ function emitted(light::DiffuseLight, u::Float64, v::Float64, p::Vec3)::Vec3
     return value(light.emit, u, v, p)
 end
 
+struct Translate <: Hitable
+    ptr::Hitable
+    offset::Vec3
+end
+
 struct RotateY <: Hitable
     sin_t::Float64
     cos_t::Float64
@@ -657,6 +662,15 @@ function boundingBox(box::Box, t0::Float64, t1::Float64)::Union{AABB, Nothing}
     return AABB(box.pmin, box.pmax)
 end
 
+function boundingBox(t::Translate, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    box = boundingBox(t.ptr, t0, t1)
+    if (isa(box, AABB))
+        return AABB(box.min + t.offset, box.max + t.offset)
+    else
+        return nothing
+    end
+end
+    
 function boundingBox(ty::RotateY, t0::Float64, t1::Float64)::Union{AABB, Nothing}
     return ty.box
 end
@@ -874,6 +888,16 @@ function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::
     return result
 end
 
+function hit(t::Translate, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+    moved_r = Ray(r.origin - t.offset, r.direction, r.time)
+    rec = hit(t.ptr, moved_r, t_min, t_max)
+    if (isa(rec, HitRecord))
+        return HitRecord(rec.t, rec.p + t.offset, rec.normal, rec.material, rec.u, rec.v)
+    else
+        return nothing
+    end
+end
+
 function hit(ry::RotateY, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     origin = copy(r.origin)
     direction = copy(r.direction)
@@ -1056,8 +1080,12 @@ function cornell_smoke()::BVHNode
     push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
     push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
 
-    b1 = RotateY(Box([130.0, 0.0, 65.0], [295.0, 165.0, 230.0], white), -18.0)
-    b2 = RotateY(Box([265.0, 0.0, 295.0], [430.0, 330.0, 460.0], white), 15.0)
+    b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
+                   [130.0, 0.0, 65.0])
+
+    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], white), 15.0),
+                   [265.0, 0.0, 295.0])
+                   
     push!(list, ConstantMedium(b1, 0.01, ConstantTexture([1.0, 1.0, 1.0])))
     push!(list, ConstantMedium(b2, 0.01, ConstantTexture([0.0, 0.0, 0.0])))
 
@@ -1103,9 +1131,9 @@ function random_scene()::BVHNode
 end
 
 function main()
-    nx::Int = 200;
-    ny::Int = 100;
-    ns::Int = 100;
+    nx::Int = 400;
+    ny::Int = 200;
+    ns::Int = 200;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [278.0, 278.0, -800.0]
@@ -1134,7 +1162,7 @@ function main()
     # world::BVHNode = two_spheres()
     # world::BVHNode = sphere_textured()
     # world::BVHNode = simple_light()
-    world::BVHNode = cornell_box()
+    world::BVHNode = cornell_smoke()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
