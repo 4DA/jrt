@@ -74,18 +74,29 @@ struct RotateY <: Hitable
                         end
                     end
 
-                    @printf(Base.fdio(2), "ijk: %f, %f, %f\n", i, j, k)
                 end
             end
         end
 
         aabb = AABB(min, max)
-        print(aabb, "RotationY: ")
 
         return new(sin_t, cos_t, AABB(min, max), p)
     end
 end
 
+struct Isotropic <: Material
+    albedo::Texture
+end
+
+struct ConstantMedium <: Hitable
+    boundary::Hitable
+    density::Float64
+    phaseFunction::Material
+
+    function ConstantMedium(boundary::Hitable, density::Float64, a::Texture)
+        return new(boundary, density, Isotropic(a))
+    end
+end
 
 function normalize(v::Vec3)::Vec3
     return v / norm(v)
@@ -460,6 +471,9 @@ function emitted(m::Dielectric, u::Float64, v::Float64, p::Vec3)::Vec3
     return [0.0, 0.0, 0.0]
 end
 
+function emitted(iso::Isotropic, u::Float64, v::Float64, p::Vec3)::Vec3
+    return [0.0, 0.0, 0.0]
+end
 
 function random_in_unit_sphere()
     p::Vec3 = [0.0, 0.0, 0.0]
@@ -553,6 +567,10 @@ function scatter(l::DiffuseLight, r_in::Ray, hit::HitRecord)::Union{ScatterRecor
     return nothing
 end
 
+function scatter(iso::Isotropic, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
+    res = ScatterRecord(Ray(hit.p, random_in_unit_sphere()), value(iso.albedo, hit.u, hit.v, hit.p))
+end
+
 function getRay(c::Camera, s::Float64, t::Float64)::Ray
     rd = c.lens_radius * random_in_unit_disk()
     offset = c.u * rd[1] + c.v * rd[2]
@@ -643,6 +661,9 @@ function boundingBox(ty::RotateY, t0::Float64, t1::Float64)::Union{AABB, Nothing
     return ty.box
 end
 
+function boundingBox(medium::ConstantMedium, t0::Float64, t1::Float64)::Union{AABB, Nothing}
+    return boundingBox(medium.boundary, t0, t1)
+end
 
 
 function hit(aabb::AABB, r::Ray, tmin::Float64, tmax::Float64)::Bool
@@ -877,7 +898,42 @@ function hit(ry::RotateY, r::Ray, t_min::Float64, t_max::Float64)::Union{HitReco
     return nothing
 end
 
-function print(s::Sphere, str::String)
+function hit(medium::ConstantMedium, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+    res = HitRecord
+    rec1 = hit(medium.boundary, r, typemin(Float64), typemax(Float64))
+    if (isa(rec1, HitRecord))
+        rec2 = hit(medium.boundary, r, rec1.t + 0.0001, typemax(Float64))
+
+        if (!isa(rec2, HitRecord))
+            return nothing
+        end
+
+        t1 = clamp(rec1.t, t_min, typemax(Float64))
+        t2 = clamp(rec2.t, typemin(Float64), t_max)
+
+        if (t1  >= t2)
+            return nothing
+        end
+
+        t1 = clamp(t1, 0, typemax(Float64))
+
+        distance_inside_boundary = (t2 - t1) * length(r.direction)
+
+        hit_distance = -(1.0 / medium.density) * log(rand())
+        res_t = t1 + hit_distance / length(r.direction)
+        if (hit_distance < distance_inside_boundary)
+            return HitRecord(res_t,
+                             point_at_parameter(r, res_t),
+                             [1.0, 0.0, 0.0], # arbitrary
+                             medium.phaseFunction,
+                             0.0,
+                             0.0)
+        end
+    end
+    return nothing
+end
+
+function printObj(s::Sphere, str::String)
     @printf(Base.fdio(2),
             "%s: sphere c = <%.1f, %.1f, %.1f>, r = %.1f\n",
             str,
@@ -885,7 +941,7 @@ function print(s::Sphere, str::String)
             s.radius)
 end
 
-function print(box::AABB, str::String)
+function printObj(box::AABB, str::String)
     @printf(Base.fdio(2),
             "%s: <%.1f, %.1f, %.1f>-<%.1f, %.1f, %.1f>\n",
             str,
@@ -893,7 +949,7 @@ function print(box::AABB, str::String)
             box.max[1], box.max[2], box.max[3])
 end
 
-function print(mvs::MovingSphere, str::String)
+function printObj(mvs::MovingSphere, str::String)
     c1 = center(mvs, 0.0)
     c2 = center(mvs, 1.0)
 
@@ -985,23 +1041,25 @@ function simple_light()::BVHNode
     return BVHNode(list, 0.0, 1.0)    
 end
 
-function cornell_box()::BVHNode
+function cornell_smoke()::BVHNode
     list::Array{Hitable} = []
 
     red = Lambertian(ConstantTexture([0.65, 0.05, 0.05]))
     white = Lambertian(ConstantTexture([0.73, 0.73, 0.73]))
     green = Lambertian(ConstantTexture([0.12, 0.45, 0.15]))
-    light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
+    light = DiffuseLight(ConstantTexture([7.0, 7.0, 7.0]))
     
     push!(list, FlipNormals(YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green)))
     push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 0.0, red))
-    push!(list, XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light))
+    push!(list, XZRect(113.0, 443.0, 127.0, 432.0, 554.0, light))
     push!(list, FlipNormals(XZRect(0.0, 555.0, 0.0, 555.0, 555.0, white)))
     push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
     push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
 
-    push!(list, RotateY(Box([130.0, 0.0, 65.0], [295.0, 165.0, 230.0], white), -18.0))
-    # push!(list, RotateY(Box([265.0, 0.0, 295.0], [430.0, 330.0, 460.0], white), 15.0))
+    b1 = RotateY(Box([130.0, 0.0, 65.0], [295.0, 165.0, 230.0], white), -18.0)
+    b2 = RotateY(Box([265.0, 0.0, 295.0], [430.0, 330.0, 460.0], white), 15.0)
+    push!(list, ConstantMedium(b1, 0.01, ConstantTexture([1.0, 1.0, 1.0])))
+    push!(list, ConstantMedium(b2, 0.01, ConstantTexture([0.0, 0.0, 0.0])))
 
     return BVHNode(list, 0.0, 1.0)    
 end
@@ -1045,9 +1103,9 @@ function random_scene()::BVHNode
 end
 
 function main()
-    nx::Int = 400;
-    ny::Int = 200;
-    ns::Int = 50;
+    nx::Int = 200;
+    ny::Int = 100;
+    ns::Int = 100;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [278.0, 278.0, -800.0]
@@ -1111,3 +1169,7 @@ function main()
 end
 
 main()
+
+# using Profile
+# using ProfileView
+# ProfileView.view()
