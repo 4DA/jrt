@@ -156,6 +156,10 @@ struct NoiseTexture <: Texture
     function NoiseTexture()
         return new(g_Perlin, 5)
     end
+
+    function NoiseTexture(scale)
+        return new(g_Perlin, scale)
+    end
 end
 
 struct ImageTexture <: Texture
@@ -285,7 +289,7 @@ end
 struct Box <: Hitable
     pmin::Vec3
     pmax::Vec3
-    list::Hitable
+    list::HitableList
 
     function Box(p0::Vec3, p1::Vec3, material::Material)
         list::Array{Hitable} = []
@@ -299,7 +303,7 @@ struct Box <: Hitable
         push!(list,             YZRect(p0[2], p1[2], p0[3], p1[3], p1[1], material))
         push!(list, FlipNormals(YZRect(p0[2], p1[2], p0[3], p1[3], p0[1], material)))
 
-        return new(p0, p1, BVHNode(list, 0.0, 1.0))
+        return new(p0, p1, HitableList(list))
     end
 end
 
@@ -770,10 +774,11 @@ function hit(sphere::MovingSphere, r::Ray, t_min::Float64, t_max::Float64)::Unio
         #         p[3],
         #         t1
         #         )
+            u, v = get_sphere_uv((p - center(sphere, r.time)) / sphere.radius)
             return HitRecord(t1,
                               p,
                              (p - center(sphere, r.time)) / sphere.radius,
-                             sphere.material)
+                             sphere.material, u, v)
         end
         
         t2 = (-b + sqrt(D)) / (2.0 * a)
@@ -786,11 +791,11 @@ function hit(sphere::MovingSphere, r::Ray, t_min::Float64, t_max::Float64)::Unio
         #         p[3],
         #         t2,
         #         )
-
+            u, v = get_sphere_uv((p - center(sphere, r.time)) / sphere.radius)
             return HitRecord(t2,
                               p, 
                              (p - center(sphere, r.time)) / sphere.radius,
-                             sphere.material)
+                             sphere.material, u, v)
         end
     end
     return nothing
@@ -873,12 +878,12 @@ function hit(box::Box, r::Ray, t0::Float64, t1::Float64)::Union{HitRecord, Nothi
     return hit(box.list, r, t0, t1)
 end
 
-function hit(hitables::Array{Hitable}, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+function hit(hitables::HitableList, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     result::Union{HitRecord, Nothing} = nothing
     closest_t = t_max
 
-    for i = 1:length(hitables)
-        hit_res = hit(hitables[i], r, t_min, closest_t)
+    for i = 1:length(hitables.array)
+        hit_res = hit(hitables.array[i], r, t_min, closest_t)
         if (isa(hit_res, HitRecord))
             closest_t = hit_res.t
             result = hit_res
@@ -925,6 +930,9 @@ end
 function hit(medium::ConstantMedium, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
     res = HitRecord
     rec1 = hit(medium.boundary, r, typemin(Float64), typemax(Float64))
+
+    db = rand() < 0.00001 ? true : false
+    
     if (isa(rec1, HitRecord))
         rec2 = hit(medium.boundary, r, rec1.t + 0.0001, typemax(Float64))
 
@@ -938,6 +946,10 @@ function hit(medium::ConstantMedium, r::Ray, t_min::Float64, t_max::Float64)::Un
         if (t1  >= t2)
             return nothing
         end
+
+        # if (db)
+        #     @printf(Base.fdio(2), "t0: %f, t1: %f\n", rec1.t, rec2.t)
+        # end
 
         t1 = clamp(t1, 0, typemax(Float64))
 
@@ -1092,6 +1104,61 @@ function cornell_smoke()::BVHNode
     return BVHNode(list, 0.0, 1.0)    
 end
 
+function final_scene()::BVHNode
+    list::Array{Hitable} = []
+    boxlist::Array{Hitable} = []
+    boxlist2::Array{Hitable} = []
+
+    white = Lambertian(ConstantTexture([0.73, 0.73, 0.73]))
+    ground = Lambertian(ConstantTexture([0.48, 0.83, 0.53]))
+
+    nb = 20
+    
+    for i = 0:nb-1
+        for j = 0:nb-1
+            w = 100
+            x0 = convert(Float64, -1000 + i * w)
+            z0 = convert(Float64, -1000 + j * w)
+            y0 = 0.0
+            x1 = x0 + w
+            y1 = 100.0 * (rand() + 0.01)
+            z1 = z0 + w
+            push!(boxlist, Box([x0, y0, z0], [x1, y1, z1], ground))
+        end
+    end
+
+    push!(list, BVHNode(boxlist, 0.0, 1.0))
+
+    light = DiffuseLight(ConstantTexture([7.0, 7.0, 7.0]))
+    push!(list, XZRect(123.0, 423.0, 147.0, 412.0, 554.0, light))
+    center = [400.0, 400.0, 200.0]
+    push!(list, MovingSphere(center, center + [30.0, 0.0, 0.0], 0.0, 1.0, 50.0,
+                             Lambertian(ConstantTexture([0.7, 0.3, 0.1]))))
+
+    push!(list, Sphere([260.0, 150.0, 45.0], 50.0, Dielectric(1.5)))
+    push!(list, Sphere([0.0, 150.0, 145.0], 50.0, Metal([0.8, 0.8, 0.9], 10.0)))
+
+    boundary = Sphere([360.0, 150.0, 145.0], 70.0, Dielectric(1.5))
+    push!(list, ConstantMedium(boundary, 0.2, ConstantTexture([0.2, 0.4, 0.9])))
+
+    boundary = Sphere([0.0, 0.0, 0.0], 5000.0, Dielectric(1.5))
+    push!(list, ConstantMedium(boundary, 0.0001, ConstantTexture([1.0, 1.0, 1.0])))
+
+    imgT = ImageTexture(load("earth.png"))
+    push!(list, Sphere([400.0, 200.0, 400.0], 100.0, Lambertian(imgT)))
+    
+    pertext = NoiseTexture(0.1)
+    push!(list, Sphere([220.0, 280.0, 300.0], 80.0, Lambertian(pertext)))
+
+    for i = 0:1000
+        push!(boxlist2, Sphere([165.0 * rand(), 165.0 * rand(), 165.0 * rand()], 10.0, white))
+    end
+
+    push!(list, Translate(RotateY(BVHNode(boxlist2, 0.0, 1.0), 15.0), [-100.0, 270.0, 395]))
+
+    return BVHNode(list, 0.0, 1.0)    
+end
+
 
 function random_scene()::BVHNode
     list::Array{Hitable} = []
@@ -1133,7 +1200,7 @@ end
 function main()
     nx::Int = 400;
     ny::Int = 200;
-    ns::Int = 200;
+    ns::Int = 10;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [278.0, 278.0, -800.0]
@@ -1162,12 +1229,21 @@ function main()
     # world::BVHNode = two_spheres()
     # world::BVHNode = sphere_textured()
     # world::BVHNode = simple_light()
-    world::BVHNode = cornell_smoke()
+    # world::BVHNode = cornell_smoke()
+    world::BVHNode = final_scene()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
 
             col::Array{Float64} = [0.0, 0.0, 0.0]
+
+            # if (!(j < ny / 4 && i > nx / 4))
+            #     @printf("%d %d %d\n", 0, 0, 0)
+            #     continue
+
+            # end
+            
+            
             for s = 1:ns
                 u::Float64 = (convert(Float64, i) + rand()) / nx
                 v::Float64 = (convert(Float64, j) + rand()) / ny
