@@ -1140,6 +1140,7 @@ function final_scene()::BVHNode
     push!(list, Sphere([0.0, 150.0, 145.0], 50.0, Metal([0.8, 0.8, 0.9], 10.0)))
 
     boundary = Sphere([360.0, 150.0, 145.0], 70.0, Dielectric(1.5))
+    push!(list, boundary)
     push!(list, ConstantMedium(boundary, 0.2, ConstantTexture([0.2, 0.4, 0.9])))
 
     boundary = Sphere([0.0, 0.0, 0.0], 5000.0, Dielectric(1.5))
@@ -1204,7 +1205,7 @@ function main()
     ns::Int = 200;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    lookFrom = [278.0, 278.0, -800.0]
+    lookFrom = [478.0, 278.0, -600.0]
     lookAt = [278.0, 278.0, 0.0]
     aperture = 0.0
     dist_to_focus = 10.0
@@ -1230,8 +1231,8 @@ function main()
     # world::BVHNode = two_spheres()
     # world::BVHNode = sphere_textured()
     # world::BVHNode = simple_light()
-    world::BVHNode = cornell_smoke()
-    # world::BVHNode = final_scene()
+    # world::BVHNode = cornell_smoke()
+    world::BVHNode = final_scene()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
