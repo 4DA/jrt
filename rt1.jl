@@ -953,10 +953,11 @@ function hit(medium::ConstantMedium, r::Ray, t_min::Float64, t_max::Float64)::Un
 
         t1 = clamp(t1, 0, typemax(Float64))
 
-        distance_inside_boundary = (t2 - t1) * length(r.direction)
+        distance_inside_boundary = (t2 - t1) * norm(r.direction)
 
         hit_distance = -(1.0 / medium.density) * log(rand())
-        res_t = t1 + hit_distance / length(r.direction)
+        res_t = t1 + hit_distance / norm(r.direction)
+
         if (hit_distance < distance_inside_boundary)
             return HitRecord(res_t,
                              point_at_parameter(r, res_t),
@@ -1097,7 +1098,7 @@ function cornell_smoke()::BVHNode
 
     b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], white), 15.0),
                    [265.0, 0.0, 295.0])
-                   
+
     push!(list, ConstantMedium(b1, 0.01, ConstantTexture([1.0, 1.0, 1.0])))
     push!(list, ConstantMedium(b2, 0.01, ConstantTexture([0.0, 0.0, 0.0])))
 
@@ -1199,8 +1200,8 @@ end
 
 function main()
     nx::Int = 400;
-    ny::Int = 200;
-    ns::Int = 10;
+    ny::Int = 400;
+    ns::Int = 200;
     @printf("P3\n%d %d\n255\n", nx, ny);
 
     lookFrom = [278.0, 278.0, -800.0]
@@ -1229,8 +1230,8 @@ function main()
     # world::BVHNode = two_spheres()
     # world::BVHNode = sphere_textured()
     # world::BVHNode = simple_light()
-    # world::BVHNode = cornell_smoke()
-    world::BVHNode = final_scene()
+    world::BVHNode = cornell_smoke()
+    # world::BVHNode = final_scene()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
@@ -1277,3 +1278,4 @@ main()
 # using Profile
 # using ProfileView
 # ProfileView.view()
+
