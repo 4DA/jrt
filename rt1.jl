@@ -79,6 +79,34 @@ function cornell_smoke()::BVHNode
     return BVHNode(list, 0.0, 1.0)    
 end
 
+function cornell_box()::BVHNode
+    list::Array{Hitable} = []
+
+    red = Lambertian(ConstantTexture([0.65, 0.05, 0.05]))
+    white = Lambertian(ConstantTexture([0.73, 0.73, 0.73]))
+    green = Lambertian(ConstantTexture([0.12, 0.45, 0.15]))
+    light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
+    
+    push!(list, FlipNormals(YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green)))
+    push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 0.0, red))
+    push!(list, XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light))
+    push!(list, FlipNormals(XZRect(0.0, 555.0, 0.0, 555.0, 555.0, white)))
+    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
+    push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
+
+    b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
+                   [130.0, 0.0, 65.0])
+
+    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], white), 15.0),
+                   [265.0, 0.0, 295.0])
+
+    push!(list, b1)
+    push!(list, b2)
+
+    return BVHNode(list, 0.0, 1.0)    
+end
+
+
 function final_scene()::BVHNode
     list::Array{Hitable} = []
     boxlist::Array{Hitable} = []
@@ -190,7 +218,7 @@ end
 
 
 function main(nx::Int, ny::Int, ns::Int, out::Array{RGB, 2})
-    lookFrom = [478.0, 278.0, -600.0]
+    lookFrom = [278.0, 278.0, -800.0]
     lookAt = [278.0, 278.0, 0.0]
     aperture = 0.0
     dist_to_focus = 10.0
@@ -201,7 +229,7 @@ function main(nx::Int, ny::Int, ns::Int, out::Array{RGB, 2})
 
     R = cos(pi / 4)
 
-    world::BVHNode = final_scene()
+    world::BVHNode = cornell_box()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
