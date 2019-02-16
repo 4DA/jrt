@@ -378,20 +378,20 @@ function hit(t::Translate, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRec
     end
 end
 
-function hit(ry::RotateY, r::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
-    origin = copy(r.origin)
-    direction = copy(r.direction)
-    origin[1] = ry.cos_t * r.origin[1] - ry.sin_t * r.origin[3]
-    origin[3] = ry.sin_t * r.origin[1] + ry.cos_t * r.origin[3]
-    direction[1] = ry.cos_t * r.direction[1] - ry.sin_t * r.direction[3]
-    direction[3] = ry.sin_t * r.direction[1] + ry.cos_t * r.direction[3]
-    rotated_r = Ray(origin, direction, r.time)
+function hit(ry::RotateY, ray::Ray, t_min::Float64, t_max::Float64)::Union{HitRecord, Nothing}
+    origin = copy(ray.origin)
+    direction = copy(ray.direction)
+    origin[1] = ry.cos_t * ray.origin[1] - ry.sin_t * ray.origin[3]
+    origin[3] = ry.sin_t * ray.origin[1] + ry.cos_t * ray.origin[3]
+    direction[1] = ry.cos_t * ray.direction[1] - ry.sin_t * ray.direction[3]
+    direction[3] = ry.sin_t * ray.direction[1] + ry.cos_t * ray.direction[3]
+    rotated_r = Ray(origin, direction, ray.time)
 
     rec = hit(ry.ptr, rotated_r, t_min, t_max)
 
     if (isa(rec, HitRecord))
-        p = rec.p
-        normal = rec.normal
+        p = copy(rec.p)
+        normal = copy(rec.normal)
         p[1] = ry.cos_t * rec.p[1] + ry.sin_t * rec.p[3]
         p[3] = -ry.sin_t * rec.p[1] + ry.cos_t * rec.p[3]
         normal[1] = ry.cos_t * rec.normal[1] + ry.sin_t * rec.normal[3]

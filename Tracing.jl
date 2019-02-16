@@ -43,14 +43,15 @@ function point_at_parameter(r::Ray, t::Float64)
     return r.origin + t * r.direction
 end
 
-function color(r::Ray, world::BVHNode, depth::Int64)::Array{Float64}
+function color(r::Ray, world::Hitable, depth::Int64)::Array{Float64}
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
         emission = emitted(hitres.material, hitres.u, hitres.v, hitres.p)
         if (depth < 50)
             scatterRes = scatter(hitres.material, r, hitres)
             if (isa(scatterRes, ScatterRecord))
-                return emission + scatterRes.attenuation .* color(scatterRes.ray, world, depth + 1)
+                c = color(scatterRes.ray, world, depth + 1)
+                return emission + scatterRes.attenuation .* c
             end
         end
         return emission
