@@ -79,7 +79,7 @@ function cornell_smoke()::BVHNode
     return BVHNode(list, 0.0, 1.0)    
 end
 
-function cornell_box()::BVHNode
+function cornell_box()::Hitable
     list::Array{Hitable} = []
 
     red = Lambertian(ConstantTexture([0.65, 0.05, 0.05]))
@@ -103,7 +103,7 @@ function cornell_box()::BVHNode
     push!(list, b1)
     push!(list, b2)
 
-    return BVHNode(list, 0.0, 1.0)    
+    return HitableList(list)
 end
 
 
@@ -164,10 +164,10 @@ function final_scene()::BVHNode
 end
 
 
-function main_ppm(nx::Int, ny::Int, ns::Int, out::Array{RGB, 2})
+function main_ppm(nx::Int, ny::Int, ns::Int)
     @printf("P3\n%d %d\n255\n", nx, ny);
 
-    lookFrom = [478.0, 278.0, -600.0]
+    lookFrom = [278.0, 278.0, -800.0]
     lookAt = [278.0, 278.0, 0.0]
     aperture = 0.0
     dist_to_focus = 10.0
@@ -178,7 +178,7 @@ function main_ppm(nx::Int, ny::Int, ns::Int, out::Array{RGB, 2})
 
     R = cos(pi / 4)
 
-    world::BVHNode = final_scene()
+    world = cornell_box()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
@@ -202,8 +202,6 @@ function main_ppm(nx::Int, ny::Int, ns::Int, out::Array{RGB, 2})
             col = sqrt.(col)
             col = clamp.(col, 0.0, 1.0)
 
-            out[ny - j, i+1] = RGB(col[1], col[2], col[3])
-                    
             ir::Int = trunc(255.99 * col[1])
             ig::Int = trunc(255.99 * col[2])
             ib::Int = trunc(255.99 * col[3])
@@ -264,10 +262,13 @@ end
 function driver()
     nx::Int = 400;
     ny::Int = 400;
-    ns::Int = 5;
+    ns::Int = 50;
     out = Array{RGB, 2}(undef, ny, nx)
-    @time main(nx, ny, ns, out)
-    imshow(out)
+
+    @time main_ppm(nx, ny, ns)
+
+    # @time main(nx, ny, ns, out)
+    # imshow(out)
     readline(stdin)
 end
 
