@@ -65,10 +65,18 @@ function reflect(v::Array{Float64}, n::Array{Float64})::Array{Float64}
     return v - 2.0 * dot(v,n) * n
 end
 
+function scatteringPDF(m::Lambertian, r_in::Ray, hit::HitRecord, scattered::Ray)::Float64
+    cosine = dot(hit.normal, normalize(scattered.direction))
+    cosine = clamp(cosine, 0.0, 1.0)
+    return cosine / pi
+end
+
 function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
     target = hit.p + hit.normal + random_in_unit_sphere()
-    scattered = Ray(hit.p, target - hit.p)
-    return ScatterRecord(scattered, value(m.albedo, hit.u, hit.v, hit.p))
+    scattered = Ray(hit.p, normalize(target - hit.p), r_in.time)
+    pdf = dot(hit.normal, normalize(scattered.direction)) / pi
+    pdf = clamp(pdf, 0.0, 1.0)
+    return ScatterRecord(scattered, value(m.albedo, hit.u, hit.v, hit.p), pdf)
 end
 
 function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}

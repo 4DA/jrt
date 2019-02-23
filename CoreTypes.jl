@@ -28,6 +28,7 @@ end
 
 struct ScatterRecord
     ray::Ray
-    attenuation::Vec3
+    albedo::Vec3
+    pdf::Float64
 end
 

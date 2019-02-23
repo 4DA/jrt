@@ -1,4 +1,5 @@
 using LinearAlgebra
+import Base.*
 
 struct Camera
     origin::Vec3
@@ -43,6 +44,10 @@ function point_at_parameter(r::Ray, t::Float64)
     return r.origin + t * r.direction
 end
 
+function *(a::Vec3, b::Vec3)::Vec3
+    return a .* b
+end
+
 function color(r::Ray, world::Hitable, depth::Int64)::Array{Float64}
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
@@ -50,8 +55,9 @@ function color(r::Ray, world::Hitable, depth::Int64)::Array{Float64}
         if (depth < 50)
             scatterRes = scatter(hitres.material, r, hitres)
             if (isa(scatterRes, ScatterRecord))
-                c = color(scatterRes.ray, world, depth + 1)
-                return emission + scatterRes.attenuation .* c
+                return emission + scatterRes.albedo *
+                    scatteringPDF(hitres.material, r, hitres, scatterRes.ray) *
+                    color(scatterRes.ray, world, depth + 1) / scatterRes.pdf
             end
         end
         return emission
