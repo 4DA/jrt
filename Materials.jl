@@ -72,9 +72,12 @@ function scatteringPDF(m::Lambertian, r_in::Ray, hit::HitRecord, scattered::Ray)
 end
 
 function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
-    target = hit.p + hit.normal + random_in_unit_sphere()
-    scattered = Ray(hit.p, normalize(target - hit.p), r_in.time)
+    uvw = onb(hit.normal)
+    direction = to_local(uvw, random_cosine_direction())
+
+    scattered = Ray(hit.p, normalize(direction), r_in.time)
     pdf = dot(hit.normal, normalize(scattered.direction)) / pi
+
     pdf = clamp(pdf, 0.0, 1.0)
     return ScatterRecord(scattered, value(m.albedo, hit.u, hit.v, hit.p), pdf)
 end
