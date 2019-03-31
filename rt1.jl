@@ -5,12 +5,12 @@ using FileIO
 using ImageView
 
 include("CoreTypes.jl")
+include("Utils.jl")
 include("BVH.jl")
 include("Tracing.jl")
 include("Transforms.jl")
 include("Hitables.jl")
 include("Materials.jl")
-include("Utils.jl")
 include("Textures.jl")
 
 function two_spheres()::BVHNode

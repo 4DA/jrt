@@ -1,6 +1,6 @@
-function normalize(v::Vec3)::Vec3
-    return v / norm(v)
-end
+# function normalize(v::Vec3)::Vec3
+#     return v / norm(v)
+# end
 
 function random_in_unit_sphere()
     p::Vec3 = [0.0, 0.0, 0.0]
@@ -20,33 +20,6 @@ function random_in_unit_disk()
     return p
 end
 
-struct onb
-    u::Vec3
-    v::Vec3
-    w::Vec3
-
-    function onb(n::Vec3)
-        u::Vec3 = zeros(3)
-        v::Vec3 = zeros(3)
-        w::Vec3 = n
-        a::Vec3 = zeros(3)
-
-        if (abs(n[1]) > 0.9)
-            a = [0.0, 1.0, 0.0]
-        else
-            a = [1.0, 0.0, 0.0]
-        end
-
-        v = normalize(cross(w, a))
-        u = cross(w, v)
-
-        return new(u, v, w)
-    end
-end
-
-function to_local(basis::onb, a::Vec3)::Vec3
-    return a[1] * basis.u + a[2] * basis.v + a[3] * basis.w
-end
 
 # Let’s review now because that was most of the concepts that underlie MC ray tracers.
 # 1. You have an integral of f(x) over some domain​ [a,b]
