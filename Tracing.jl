@@ -50,7 +50,7 @@ end
 function color(r::Ray, world::Hitable, depth::Int64)::Array{Float64}
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
-        emission = emitted(hitres.material, hitres.u, hitres.v, hitres.p)
+        emission = emitted(hitres.material, r, hitres, hitres.u, hitres.v, hitres.p)
         if (depth < 50)
             scatterRes = scatter(hitres.material, r, hitres)
             if (isa(scatterRes, ScatterRecord))

@@ -2,8 +2,12 @@ struct DiffuseLight <: Material
     emit::Texture
 end
 
-function emitted(light::DiffuseLight, u::Float64, v::Float64, p::Vec3)::Vec3
-    return value(light.emit, u, v, p)
+function emitted(light::DiffuseLight, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
+    if (dot(rec.normal, r_in.direction) < 0.0)
+        return value(light.emit, u, v, p)
+    else
+        return [0.0, 0.0, 0.0]
+    end
 end
 
 struct Isotropic <: Material
@@ -25,21 +29,21 @@ struct Dielectric <: Material
     ref_idx::Float64
 end
 
-function emitted(m::Lambertian, u::Float64, v::Float64, p::Vec3)::Vec3
+function emitted(m::Lambertian, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
     return [0.0, 0.0, 0.0]
 end
 
 
-function emitted(m::Metal, u::Float64, v::Float64, p::Vec3)::Vec3
+function emitted(m::Metal, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
     return [0.0, 0.0, 0.0]
 end
 
 
-function emitted(m::Dielectric, u::Float64, v::Float64, p::Vec3)::Vec3
+function emitted(m::Dielectric, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
     return [0.0, 0.0, 0.0]
 end
 
-function emitted(iso::Isotropic, u::Float64, v::Float64, p::Vec3)::Vec3
+function emitted(iso::Isotropic, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
     return [0.0, 0.0, 0.0]
 end
 

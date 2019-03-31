@@ -89,7 +89,7 @@ function cornell_box()::Hitable
     
     push!(list, FlipNormals(YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green)))
     push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 0.0, red))
-    push!(list, XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light))
+    push!(list, FlipNormals(XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light)))
     push!(list, FlipNormals(XZRect(0.0, 555.0, 0.0, 555.0, 555.0, white)))
     push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
     push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
