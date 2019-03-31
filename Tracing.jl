@@ -71,7 +71,10 @@ function color(r::Ray, world::Hitable, depth::Int64)::Array{Float64}
         if (depth < 50)
             scatterRes = scatter(hitres.material, r, hitres)
             if (isa(scatterRes, ScatterRecord))
-                pdf = CosinePDF(hitres.normal)
+                light_shape = XZRect(213.0, 343.0, 227.0, 332.0, 554.0,
+                                     DiffuseLight(ConstantTexture([7.0, 7.0, 7.0])))
+
+                pdf = HitablePDF(light_shape, hitres.p)
                 scattered = Ray(hitres.p, generate(pdf), r.time)
                 pdf_val = value(pdf, scattered.direction)
                 return emission + scatterRes.albedo ⊗
