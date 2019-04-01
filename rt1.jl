@@ -10,6 +10,7 @@ include("BVH.jl")
 include("Tracing.jl")
 include("Transforms.jl")
 include("Hitables.jl")
+include("pdf.jl")
 include("Materials.jl")
 include("Textures.jl")
 
@@ -238,7 +239,7 @@ function main(nx::Int, ny::Int, ns::Int, out::Array{RGB, 2})
 
     R = cos(pi / 4)
 
-    world::BVHNode = cornell_box()
+    world = cornell_box()
 
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1

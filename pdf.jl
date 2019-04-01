@@ -30,15 +30,15 @@ struct HitablePDF <: PDF
     o::Vec3
 end
 
+function value(pdf::HitablePDF, direction::Vec3)::Float64
+    return pdf_value(pdf.ptr, pdf.o, direction)
+end
+
 function generate(pdf::HitablePDF)::Vec3
     return random(pdf.ptr, pdf.o)
 end
 
 # hitable pdf support code
-
-function value(pdf::HitablePDF, direction::Vec3)::Float64
-    return pdf_value(pdf.ptr, pdf.o, direction)
-end
 
 function pdf_value(h::XZRect, o::Vec3, v::Vec3)::Float64
     rec = hit(h, Ray(o, v), 0.001, typemax(Float64))
@@ -57,11 +57,30 @@ function random(h::XZRect, o::Vec3)::Vec3
     return random_point - o
 end
 
-# default implementation
+# default implementations for Hitable
 function pdf_value(h::Hitable, o::Vec3, v::Vec3)::Float64
     return 0.0
 end
 
 function random(h::Hitable, o::Vec3)::Vec3
     return [1.0, 0.0, 0.0]
+end
+
+
+# -- mixture pdf
+struct MixturePDF
+    p1::PDF
+    p2::PDF
+end
+
+function value(pdf::MixturePDF, direction::Vec3)::Float64
+    return 0.5 * value(pdf.p1, direction) + 0.5 * value(pdf.p2, direction)
+end
+
+function generate(pdf::MixturePDF)::Vec3
+    if (rand() < 0.5)
+        return generate(pdf.p1)
+    else
+        return generate(pdf.p2)
+    end
 end
