@@ -64,7 +64,7 @@ end
 # pdf = d2 / (lcos * light_area)
 # sray = Ray(hitres.p, to_light, r.time)
 
-function color(r::Ray, world::Hitable, depth::Int64)::Array{Float64}
+function color(r::Ray, world::Hitable, depth::Int64)::Vec3
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
         emission = emitted(hitres.material, r, hitres, hitres.u, hitres.v, hitres.p)

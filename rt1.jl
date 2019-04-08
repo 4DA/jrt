@@ -175,6 +175,20 @@ function final_scene()::BVHNode
     return BVHNode(list, 0.0, 1.0)    
 end
 
+function remove_nan(v::Vec3)::Vec3
+    res = [0.0, 0.0, 0.0]
+    if (!isnan(v[1]))
+        res[1] = v[1]
+    end
+    if (!isnan(v[2]))
+        res[2] = v[2]
+    end
+    if (!isnan(v[3]))
+        res[3] = v[3]
+    end
+
+    return res
+end
 
 function main_ppm(nx::Int, ny::Int, ns::Int)
     @printf("P3\n%d %d\n255\n", nx, ny);
@@ -201,7 +215,8 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
                 u::Float64 = (convert(Float64, i) + rand()) / nx
                 v::Float64 = (convert(Float64, j) + rand()) / ny
                 r = getRay(camera, u, v)
-                col += color(r, world, 0)
+                sample = remove_nan(color(r, world, 0))
+                col += clamp.(sample, 0.0, 1.0)
             end
 
             col /= convert(Float64, ns)
@@ -212,7 +227,6 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
             end
 
             col = sqrt.(col)
-            col = clamp.(col, 0.0, 1.0)
 
             ir::Int = trunc(255.99 * col[1])
             ig::Int = trunc(255.99 * col[2])
@@ -277,9 +291,9 @@ function driver()
     ns::Int = 50;
     out = Array{RGB, 2}(undef, ny, nx)
 
-    @time main_ppm(nx, ny, ns)
+    main_ppm(nx, ny, ns)
 
-    # @time main(nx, ny, ns, out)
+    # main(nx, ny, ns, out)
     # imshow(out)
     # readline(stdin)
 end
