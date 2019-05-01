@@ -1,3 +1,6 @@
+# There are two functions a ​ pdf ​ needs to support:
+# 1. What is your value at this location?
+# 2. Return a random vector that is distributed appropriately.
 abstract type PDF
 end
 
