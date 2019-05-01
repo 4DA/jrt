@@ -4,6 +4,12 @@ abstract type Hitable end
 abstract type Material end
 abstract type Texture end
 
+# There are two functions a ​ pdf ​ needs to support:
+# 1. What is your value at this location?
+# 2. Return a random vector that is distributed appropriately.
+abstract type PDF
+end
+
 struct AABB
     min::Vec3
     max::Vec3
@@ -27,9 +33,10 @@ struct HitRecord
 end
 
 struct ScatterRecord
-    ray::Ray
-    albedo::Vec3
-    pdf::Float64
+    specular_ray::Ray
+    is_specular::Bool
+    attenuation::Vec3
+    pdf::PDF
 end
 
 struct onb

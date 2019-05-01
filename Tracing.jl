@@ -64,25 +64,25 @@ end
 # pdf = d2 / (lcos * light_area)
 # sray = Ray(hitres.p, to_light, r.time)
 
-function color(r::Ray, world::Hitable, depth::Int64)::Vec3
+function color(r::Ray, world::Hitable, light_shape::Hitable, depth::Int64)::Vec3
     hitres = hit(world, r, 0.001, typemax(Float64))
     if (isa(hitres, HitRecord))
         emission = emitted(hitres.material, r, hitres, hitres.u, hitres.v, hitres.p)
         if (depth < 50)
-            scatterRes = scatter(hitres.material, r, hitres)
-            if (isa(scatterRes, ScatterRecord))
-                light_shape = XZRect(213.0, 343.0, 227.0, 332.0, 554.0,
-                                     DiffuseLight(ConstantTexture([7.0, 7.0, 7.0])))
+            srec = scatter(hitres.material, r, hitres)
+            if (isa(srec, ScatterRecord))
+                if (srec.is_specular)
+                    return srec.attenuation ⊗ color(srec.specular_ray, world, light_shape, depth + 1)
+                else
+                    plight = HitablePDF(light_shape, hitres.p)
+                    pdf = MixturePDF(plight, srec.pdf)
 
-                p1 = HitablePDF(light_shape, hitres.p)
-                p2 = CosinePDF(hitres.normal)
-                pdf = MixturePDF(p1, p2)
-
-                scattered = Ray(hitres.p, generate(pdf), r.time)
-                pdf_val = value(pdf, scattered.direction)
-                return emission + scatterRes.albedo ⊗
-                    color(scattered, world, depth + 1) *
-                    scatteringPDF(hitres.material, r, hitres, scattered) / pdf_val
+                    scattered = Ray(hitres.p, generate(pdf), r.time)
+                    pdf_val = value(pdf, scattered.direction)
+                    return emission + srec.attenuation ⊗
+                        color(scattered, world, light_shape, depth + 1) *
+                        scatteringPDF(hitres.material, r, hitres, scattered) / pdf_val
+                end
             end
         end
         return emission

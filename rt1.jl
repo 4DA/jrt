@@ -98,7 +98,8 @@ function cornell_box()::Hitable
     b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
                    [130.0, 0.0, 65.0])
 
-    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], white), 15.0),
+    aluminum = Metal([0.8, 0.85, 0.88], 0.0)
+    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], aluminum), 15.0),
                    [265.0, 0.0, 295.0])
 
     push!(list, b1)
@@ -206,6 +207,9 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
 
     world = cornell_box()
 
+    light_shape = XZRect(213.0, 343.0, 227.0, 332.0, 554.0,
+                         DiffuseLight(ConstantTexture([7.0, 7.0, 7.0])))
+
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
 
@@ -215,7 +219,7 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
                 u::Float64 = (convert(Float64, i) + rand()) / nx
                 v::Float64 = (convert(Float64, j) + rand()) / ny
                 r = getRay(camera, u, v)
-                sample = remove_nan(color(r, world, 0))
+                sample = remove_nan(color(r, world, light_shape, 0))
                 col += clamp.(sample, 0.0, 1.0)
             end
 

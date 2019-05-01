@@ -83,13 +83,16 @@ function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord,
     pdf = dot(hit.normal, normalize(scattered.direction)) / pi
 
     pdf = clamp(pdf, 0.0, 1.0)
-    return ScatterRecord(scattered, value(m.albedo, hit.u, hit.v, hit.p), pdf)
+    return ScatterRecord(scattered,
+                         false,
+                         value(m.albedo, hit.u, hit.v, hit.p),
+                         CosinePDF(hit.normal))
 end
 
 function scatter(m::Metal, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
     reflected = reflect(r_in.direction / norm(r_in.direction), hit.normal)
     scattered = Ray(hit.p, reflected + m.fuzz * random_in_unit_sphere(), r_in.time)
-    return ScatterRecord(scattered, m.albedo)
+    return ScatterRecord(scattered, true, m.albedo, NoPDF())
 end
 
 function scatter(d::Dielectric, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
