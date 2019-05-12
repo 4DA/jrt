@@ -76,14 +76,7 @@ function scatteringPDF(m::Lambertian, r_in::Ray, hit::HitRecord, scattered::Ray)
 end
 
 function scatter(m::Lambertian, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
-    uvw = onb(hit.normal)
-    direction = to_local(uvw, random_cosine_direction())
-
-    scattered = Ray(hit.p, normalize(direction), r_in.time)
-    pdf = dot(hit.normal, normalize(scattered.direction)) / pi
-
-    pdf = clamp(pdf, 0.0, 1.0)
-    return ScatterRecord(scattered,
+    return ScatterRecord(Ray([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
                          false,
                          value(m.albedo, hit.u, hit.v, hit.p),
                          CosinePDF(hit.normal))
@@ -125,9 +118,9 @@ function scatter(d::Dielectric, r_in::Ray, hit::HitRecord)::Union{ScatterRecord,
     end
 
     if (rand() < reflect_prob)
-        return ScatterRecord(Ray(hit.p, reflected), attenuation)
+        return ScatterRecord(Ray(hit.p, reflected), true, attenuation, NoPDF())
     else
-        return ScatterRecord(Ray(hit.p, refract_res), attenuation)
+        return ScatterRecord(Ray(hit.p, refract_res), true, attenuation, NoPDF())
     end
 end
 

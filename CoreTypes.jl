@@ -44,6 +44,7 @@ struct onb
     v::Vec3
     w::Vec3
 
+    # build ortho-normal basis from normal
     function onb(n::Vec3)
         u::Vec3 = zeros(3)
         v::Vec3 = zeros(3)

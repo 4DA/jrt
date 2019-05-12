@@ -66,6 +66,46 @@ function random(h::Hitable, o::Vec3)::Vec3
     return [1.0, 0.0, 0.0]
 end
 
+# -- sphere pdf
+function pdf_value(s::Sphere, o::Vec3, v::Vec3)::Float64
+    rec = hit(s, Ray(o, v), 0.001, typemax(Float64))
+    if isa(rec, HitRecord)
+        if ((s.radius^2) / (norm(s.center - o))^2) > 1.0
+        end
+        cos_theta_max = sqrt(1.0 - (s.radius^2) / (norm(s.center - o))^2)
+        solid_angle = 2 * pi * (1 - cos_theta_max)
+        return 1.0 / solid_angle
+    else
+        return 0.0
+    end
+end
+
+function random(s::Sphere, o::Vec3)::Vec3
+    direction = s.center - o
+    dsqr = norm(direction)^2
+    uvw = onb(direction)
+    return to_local(uvw, random_to_sphere(s.radius, dsqr))
+end
+
+function random_to_sphere(radius::Float64, dsqr::Float64)::Vec3
+    r1 = rand()
+    r2 = rand()
+
+    if ((radius^2) / dsqr) > 1.0
+        @printf(Base.fdio(2),
+                "BAD. r2 = %f | dsqr = %f\n",
+                radius^2,
+                dsqr)
+    end
+
+    z = 1.0 + r2 * (sqrt(1 - radius^2 / dsqr) - 1.0)
+    phi = 2 * pi * r1
+    x = cos(phi) * sqrt(1-z^2)
+    y = sin(phi) * sqrt(1-z^2)
+    return [x, y, z]
+end
+
+
 
 # -- mixture pdf
 struct MixturePDF

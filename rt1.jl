@@ -95,14 +95,17 @@ function cornell_box()::Hitable
     push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
     push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
 
-    b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
-                   [130.0, 0.0, 65.0])
+    glass_sphere = Sphere([190.0, 90.0, 190.0], 90.0, Dielectric(1.5))
 
-    aluminum = Metal([0.8, 0.85, 0.88], 0.0)
-    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], aluminum), 15.0),
+    push!(list, glass_sphere)
+
+    # b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
+    #                [130.0, 0.0, 65.0])
+    # push!(list, b1)
+    # aluminum = Metal([0.8, 0.85, 0.88], 0.0)
+
+    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], white), 15.0),
                    [265.0, 0.0, 295.0])
-
-    push!(list, b1)
     push!(list, b2)
 
     return HitableList(list)
@@ -210,6 +213,9 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
     light_shape = XZRect(213.0, 343.0, 227.0, 332.0, 554.0,
                          DiffuseLight(ConstantTexture([7.0, 7.0, 7.0])))
 
+    glass_sphere = Sphere([190.0, 90.0, 190.0], 90.0,
+                          Dielectric(1.5))
+
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
 
@@ -219,7 +225,7 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
                 u::Float64 = (convert(Float64, i) + rand()) / nx
                 v::Float64 = (convert(Float64, j) + rand()) / ny
                 r = getRay(camera, u, v)
-                sample = remove_nan(color(r, world, light_shape, 0))
+                sample = remove_nan(color(r, world, glass_sphere, 0))
                 col += clamp.(sample, 0.0, 1.0)
             end
 
