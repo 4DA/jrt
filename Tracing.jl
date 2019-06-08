@@ -43,10 +43,6 @@ function point_at_parameter(r::Ray, t::Float64)
     return r.origin + t * r.direction
 end
 
-function ⊗(a::Vec3, b::Vec3)::Vec3
-    return a .* b
-end
-
 # send rays only to light source
 # on_light = [213.0 + rand() * (343.0 - 213.0), 554.0, 227.0 + rand() * (332.0 - 227)]
 # to_light = on_light - hitres.p
@@ -72,16 +68,14 @@ function color(r::Ray, world::Hitable, light_shape::Hitable, depth::Int64)::Vec3
             srec = scatter(hitres.material, r, hitres)
             if (isa(srec, ScatterRecord))
                 if (srec.is_specular)
-                    return srec.attenuation ⊗ color(srec.specular_ray, world, light_shape, depth + 1)
+                    return srec.attenuation .* color(srec.specular_ray, world, light_shape, depth + 1)
                 else
                     plight = HitablePDF(light_shape, hitres.p)
                     pdf = MixturePDF(plight, srec.pdf)
 
                     scattered = Ray(hitres.p, generate(pdf), r.time)
                     pdf_val = value(pdf, scattered.direction)
-                    return emission + srec.attenuation ⊗
-                        color(scattered, world, light_shape, depth + 1) *
-                        scatteringPDF(hitres.material, r, hitres, scattered) / pdf_val
+                    return emission + srec.attenuation * scatteringPDF(hitres.material, r, hitres, scattered) .* color(scattered, world, light_shape, depth + 1) / pdf_val
                 end
             end
         end
@@ -90,7 +84,3 @@ function color(r::Ray, world::Hitable, light_shape::Hitable, depth::Int64)::Vec3
         return [0.0, 0.0, 0.0]
     end
 end
-
-
-
-

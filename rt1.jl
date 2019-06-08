@@ -228,7 +228,7 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
                 v::Float64 = (convert(Float64, j) + rand()) / ny
                 r = getRay(camera, u, v)
                 sample = remove_nan(color(r, world, light_list, 0))
-                col += clamp.(sample, 0.0, 1.0)
+                col += sample
             end
 
             col /= convert(Float64, ns)
@@ -240,9 +240,9 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
 
             col = sqrt.(col)
 
-            ir::Int = trunc(255.99 * col[1])
-            ig::Int = trunc(255.99 * col[2])
-            ib::Int = trunc(255.99 * col[3])
+            ir::Int = trunc(255.99 * clamp(col[1], 0.0, 1.0))
+            ig::Int = trunc(255.99 * clamp(col[2], 0.0, 1.0))
+            ib::Int = trunc(255.99 * clamp(col[3], 0.0, 1.0))
             @printf("%d %d %d\n", ir, ig, ib)
         end
 
