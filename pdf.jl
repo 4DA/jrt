@@ -66,6 +66,22 @@ function random(h::Hitable, o::Vec3)::Vec3
     return [1.0, 0.0, 0.0]
 end
 
+# pdf of hitable list
+function pdf_value(h::HitableList, o::Vec3, v::Vec3)::Float64
+    weight = 1.0 / length(h.array)
+    S = 0.0
+    for i = 1:length(h.array)
+        S += weight * pdf_value(h.array[i], o, v)
+    end
+    # @printf(Base.fdio(2), "S = %lf\n", S)
+    return S
+end
+
+function random(h::HitableList, o::Vec3)::Vec3
+    index = convert(Int64, ceil(rand() * length(h.array)))
+    return random(h.array[index], o)
+end
+
 # -- sphere pdf
 function pdf_value(s::Sphere, o::Vec3, v::Vec3)::Float64
     rec = hit(s, Ray(o, v), 0.001, typemax(Float64))

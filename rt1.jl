@@ -216,6 +216,8 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
     glass_sphere = Sphere([190.0, 90.0, 190.0], 90.0,
                           Dielectric(1.5))
 
+    light_list = HitableList([light_shape, glass_sphere])
+
     for j::Int = ny - 1 : -1 : 0
         for i::Int = 0 : nx - 1
 
@@ -225,7 +227,7 @@ function main_ppm(nx::Int, ny::Int, ns::Int)
                 u::Float64 = (convert(Float64, i) + rand()) / nx
                 v::Float64 = (convert(Float64, j) + rand()) / ny
                 r = getRay(camera, u, v)
-                sample = remove_nan(color(r, world, glass_sphere, 0))
+                sample = remove_nan(color(r, world, light_list, 0))
                 col += clamp.(sample, 0.0, 1.0)
             end
 
