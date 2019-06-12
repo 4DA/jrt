@@ -48,7 +48,7 @@ struct onb
     function onb(n::Vec3)
         u::Vec3 = zeros(3)
         v::Vec3 = zeros(3)
-        w::Vec3 = n
+        w::Vec3 = normalize(n)
         a::Vec3 = zeros(3)
 
         if (abs(n[1]) > 0.9)

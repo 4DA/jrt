@@ -86,8 +86,6 @@ end
 function pdf_value(s::Sphere, o::Vec3, v::Vec3)::Float64
     rec = hit(s, Ray(o, v), 0.001, typemax(Float64))
     if isa(rec, HitRecord)
-        if ((s.radius^2) / (norm(s.center - o))^2) > 1.0
-        end
         cos_theta_max = sqrt(1.0 - (s.radius^2) / (norm(s.center - o))^2)
         solid_angle = 2 * pi * (1 - cos_theta_max)
         return 1.0 / solid_angle
