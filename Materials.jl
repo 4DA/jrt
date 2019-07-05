@@ -47,6 +47,7 @@ function emitted(iso::Isotropic, r_in::Ray, rec::HitRecord, u::Float64, v::Float
     return [0.0, 0.0, 0.0]
 end
 
+# returns approximated reflection coefficient (how much of the wave is reflected)
 function schlick(cosine::Float64, ref_idx::Float64)
     r0 = ((1.0 - ref_idx) / (1.0 + ref_idx)) ^ 2
     return r0 + (1 - r0) * (1.0 - cosine) ^ 5
