@@ -13,6 +13,7 @@ include("Hitables.jl")
 include("pdf.jl")
 include("Materials.jl")
 include("Textures.jl")
+include("brdf.jl")
 
 function two_spheres()::BVHNode
     checker = CheckerTexture(ConstantTexture([0.2, 0.3, 0.1]), ConstantTexture([0.9, 0.9, 0.9]))
@@ -78,6 +79,43 @@ function cornell_smoke()::BVHNode
     push!(list, ConstantMedium(b2, 0.01, ConstantTexture([0.0, 0.0, 0.0])))
 
     return BVHNode(list, 0.0, 1.0)    
+end
+
+function cornell_box_brdf()::Hitable
+    list::Array{Hitable} = []
+
+    red = Lambertian(ConstantTexture([0.65, 0.05, 0.05]))
+    white = Lambertian(ConstantTexture([0.73, 0.73, 0.73]))
+    green = Lambertian(ConstantTexture([0.12, 0.45, 0.15]))
+    light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
+
+    whiteBRDF = MicrofacetReflection([0.73, 0.73, 0.73],
+                                     BeckmannDistribution(1.0, 1.0), 
+                                     FresnelDielectric(1.0,
+                                                       1.5,
+                                                       [1.0, 1.0, 1.0]))
+    
+    push!(list, FlipNormals(YZRect(0.0, 555.0, 0.0, 555.0, 555.0, green)))
+    push!(list, YZRect(0.0, 555.0, 0.0, 555.0, 0.0, red))
+    push!(list, FlipNormals(XZRect(213.0, 343.0, 227.0, 332.0, 554.0, light)))
+    push!(list, FlipNormals(XZRect(0.0, 555.0, 0.0, 555.0, 555.0, white)))
+    push!(list, XZRect(0.0, 555.0, 0.0, 555.0, 0.0,  white))
+    push!(list, FlipNormals(XYRect(0.0, 555.0, 0.0, 555.0, 555.0,  white)))
+
+    # glass_sphere = Sphere([190.0, 90.0, 190.0], 90.0, Dielectric(1.5))
+
+    # push!(list, glass_sphere)
+
+    # b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
+    #                [130.0, 0.0, 65.0])
+    # push!(list, b1)
+    # aluminum = Metal([0.8, 0.85, 0.88], 0.0)
+
+    b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], whiteBRDF), 15.0),
+                   [265.0, 0.0, 295.0])
+    push!(list, b2)
+
+    return HitableList(list)
 end
 
 function cornell_box()::Hitable
@@ -192,6 +230,61 @@ function remove_nan(v::Vec3)::Vec3
     end
 
     return res
+end
+
+function main_ppm_brdf(nx::Int, ny::Int, ns::Int)
+    @printf("P3\n%d %d\n255\n", nx, ny);
+
+    lookFrom = [278.0, 278.0, -800.0]
+    lookAt = [278.0, 278.0, 0.0]
+    aperture = 0.0
+    dist_to_focus = 10.0
+    vfov = 40.0
+    camera = Camera(lookFrom, lookAt , [0.0, 1.0, 0.0], vfov,
+                    convert(Float64, nx) / convert(Float64, ny), aperture, dist_to_focus,
+                    0.0, 1.0)
+
+    R = cos(pi / 4)
+
+    world = cornell_box_brdf()
+
+    light_shape = XZRect(213.0, 343.0, 227.0, 332.0, 554.0,
+                         DiffuseLight(ConstantTexture([7.0, 7.0, 7.0])))
+
+    light_list = HitableList([light_shape])
+
+    for j::Int = ny - 1 : -1 : 0
+        for i::Int = 0 : nx - 1
+
+            col::Array{Float64} = [0.0, 0.0, 0.0]
+
+            for s = 1:ns
+                u::Float64 = (convert(Float64, i) + rand()) / nx
+                v::Float64 = (convert(Float64, j) + rand()) / ny
+                r = getRay(camera, u, v)
+                sample = remove_nan(colorBRDF(r, world, 0))
+                col += sample
+            end
+
+            col /= convert(Float64, ns)
+            if (col[1] < 0.0 || col[2] < 0.0 || col[3] < 0.0)
+                @printf(Base.fdio(2), "negative color: <%f, %f, %f>, exiting \n",
+                        col[1], col[2], col[3])
+                return
+            end
+
+            col = sqrt.(col)
+
+            ir::Int = trunc(255.99 * clamp(col[1], 0.0, 1.0))
+            ig::Int = trunc(255.99 * clamp(col[2], 0.0, 1.0))
+            ib::Int = trunc(255.99 * clamp(col[3], 0.0, 1.0))
+            @printf("%d %d %d\n", ir, ig, ib)
+        end
+
+        if (j % (ny / 10) == 0)
+        @printf(Base.fdio(2), "progress: %f\n", 1.0 - convert(Float64, j) / ny)
+        end
+    end
 end
 
 function main_ppm(nx::Int, ny::Int, ns::Int)

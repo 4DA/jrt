@@ -60,7 +60,7 @@ end
 
 # ------------------------------------------------------------------------------
 abstract type MicrofacetDistribution end
-abstract type BxDF end
+abstract type BxDF <: Material end
 
 abstract type Fresnel end
 
@@ -70,7 +70,7 @@ struct FresnelDielectric <: Fresnel
     k::Vec3
 end
 
-function fresnelDielectric(cosThetaI::Float64, etaI::Float64, etaT::Float64)
+function fresnelDielectric(cosThetaI::Float64, etaI::Float64, etaT::Float64)::Float64
     cosThetaI = clamp(cosThetaI, -1.0, 1.0);
 
     # @printf("cosThetaI = %f\n", cosThetaI)
@@ -90,7 +90,7 @@ function fresnelDielectric(cosThetaI::Float64, etaI::Float64, etaT::Float64)
     sinThetaI = sqrt(max(0.0, 1.0 - cosThetaI * cosThetaI));
     sinThetaT = etaI / etaT * sinThetaI;
 
-    @printf("cosThetaI = %f, sinThetaI = %f, sinThetaT = %f\n", cosThetaI, sinThetaI, sinThetaT)
+    # @printf("cosThetaI = %f, sinThetaI = %f, sinThetaT = %f\n", cosThetaI, sinThetaI, sinThetaT)
 
     # Handle total internal reflection
     if sinThetaT >= 1
@@ -105,7 +105,7 @@ function fresnelDielectric(cosThetaI::Float64, etaI::Float64, etaT::Float64)
     return (Rparl * Rparl + Rperp * Rperp) / 2.0;
 end
 
-function evaluate(f::FresnelDielectric, cosThetaI::Float64)
+function evaluate(f::FresnelDielectric, cosThetaI::Float64)::Float64
     return fresnelDielectric(cosThetaI, f.etaI, f.etaT)
 end
 
@@ -180,9 +180,9 @@ function f(bxdf::MicrofacetReflection, wo::Vec3, wi::Vec3)::Vec3
     wh = normalize(wh)
     # For the Fresnel call, make sure that wh is in the same hemisphere
     # as the surface normal, so that TIR is handled correctly.
-    F = evaluate(bxdf.fresnel, dot(wi, Faceforward(wh, [0.0, 0.0, 1.0])))
+    F::Float64 = evaluate(bxdf.fresnel, dot(wi, Faceforward(wh, [0.0, 0.0, 1.0])))
 
-    @printf("fresnel = %f\n", F)
+    # @printf("fresnel = %f\n", F)
     return bxdf.R * D(bxdf.distribution, wh) * G(bxdf.distribution, wo, wi) * F /
            (4 * cosThetaI * cosThetaO);
 end
@@ -197,6 +197,32 @@ function sanityTest()
       normalize([1.0, 1.0, 1.0]),
       normalize([-1.0, 1.0, 1.0]))
 end
+
+function brdfTest(N::Int64)
+    S::Vec3 = [0.0, 0.0, 0.0]
+
+    for i = 1:N
+        wo = [rand(), rand(), rand()]
+        wi = [rand(), rand(), rand()]
+        
+        S += f(MicrofacetReflection(
+            [1.0, 1.0, 1.0],
+            BeckmannDistribution(1.0, 1.0), 
+            FresnelDielectric(1.0,
+                              1.5,
+                              [1.0, 1.0, 1.0])), 
+               normalize(wo),
+               normalize(wi))
+    end
+
+    return S / N
+end
+
+function emitted(m::MicrofacetReflection, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
+    return [0.0, 0.0, 0.0]
+end
+
+
 
 
 # --- Beckmann distribution

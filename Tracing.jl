@@ -84,3 +84,34 @@ function color(r::Ray, world::Hitable, light_shape::Hitable, depth::Int64)::Vec3
         return [0.0, 0.0, 0.0]
     end
 end
+
+function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
+    hitres = hit(world, r, 0.001, typemax(Float64))
+    if (isa(hitres, HitRecord))
+        emission = emitted(hitres.material, r, hitres, hitres.u, hitres.v, hitres.p)
+        if (depth < 50)
+            if (isa(hitres.material, MicrofacetReflection))
+                # BRDF = A * s(direction) / cos(theta)
+                # return srec.attenuation * BRDF(direction) * cos(theta)
+                wo = generate(CosinePDF(hitres.normal))
+                brdf = f(hitres.material, wo, r.direction)
+                return brdf .* colorBRDF(Ray(hitres.p, wo, hitres.t),
+                                         world, depth + 1)
+            else
+                srec = scatter(hitres.material, r, hitres)
+                if (isa(srec, ScatterRecord))
+                    if (srec.is_specular)
+                        return srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
+                    else
+                        scattered = Ray(hitres.p, generate(CosinePDF(hitres.normal)))
+                        return emission + srec.attenuation .* colorBRDF(scattered, world, depth + 1)
+                    end
+                end
+                
+            end
+        end
+        return emission
+    else
+        return [0.0, 0.0, 0.0]
+    end
+end
