@@ -43,6 +43,7 @@ struct onb
     u::Vec3
     v::Vec3
     w::Vec3
+    invBasis::Array{Float64, 2}
 
     # build ortho-normal basis from normal
     function onb(n::Vec3)
@@ -60,8 +61,14 @@ struct onb
         v = normalize(cross(w, a))
         u = cross(w, v)
 
-        return new(u, v, w)
+        return new(u, v, w, inv(hcat(u, v, w)))
     end
+end
+
+#todo swap names of this functions
+
+function to_world(basis::onb, a::Vec3)::Vec3
+    return basis.invBasis * a
 end
 
 function to_local(basis::onb, a::Vec3)::Vec3

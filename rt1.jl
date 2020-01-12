@@ -90,7 +90,7 @@ function cornell_box_brdf()::Hitable
     light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
 
     whiteBRDF = MicrofacetReflection([0.73, 0.73, 0.73],
-                                     BeckmannDistribution(1.0, 1.0), 
+                                     BeckmannDistribution(0.1, 0.1),
                                      FresnelDielectric(1.0,
                                                        1.5,
                                                        [1.0, 1.0, 1.0]))
@@ -106,9 +106,9 @@ function cornell_box_brdf()::Hitable
 
     # push!(list, glass_sphere)
 
-    # b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
-    #                [130.0, 0.0, 65.0])
-    # push!(list, b1)
+    b1 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 165.0, 165.0], white), -18.0),
+                   [130.0, 0.0, 65.0])
+    push!(list, b1)
     # aluminum = Metal([0.8, 0.85, 0.88], 0.0)
 
     b2 = Translate(RotateY(Box([0.0, 0.0, 0.0], [165.0, 330.0, 165.0], whiteBRDF), 15.0),
@@ -393,10 +393,12 @@ end
 function driver()
     nx::Int = 400;
     ny::Int = 400;
-    ns::Int = 50;
+    ns::Int = 200;
     out = Array{RGB, 2}(undef, ny, nx)
 
-    main_ppm(nx, ny, ns)
+    @printf(Base.fdio(2), "Starting computation, output: %dx%d. spp = %d\n", nx, ny, ns);
+
+    main_ppm_brdf(nx, ny, ns)
 
     # main(nx, ny, ns, out)
     # imshow(out)

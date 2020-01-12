@@ -91,19 +91,39 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
         emission = emitted(hitres.material, r, hitres, hitres.u, hitres.v, hitres.p)
         if (depth < 50)
             if (isa(hitres.material, MicrofacetReflection))
-                # BRDF = A * s(direction) / cos(theta)
-                # return srec.attenuation * BRDF(direction) * cos(theta)
-                wo = generate(CosinePDF(hitres.normal))
-                brdf = f(hitres.material, wo, r.direction)
-                return brdf .* colorBRDF(Ray(hitres.p, wo, hitres.t),
-                                         world, depth + 1)
+
+                # todo: divide by cosine pdf
+                P = CosinePDF(hitres.normal)
+
+                scattered = Ray(hitres.p, generate(P), hitres.t)
+                pdf = abs(scattered.direction[3]) / pi
+                rayInLocal = to_world(P.uvw, r.direction)
+
+                brdf = f(hitres.material, random_cosine_direction(), rayInLocal)
+                c = colorBRDF(scattered, world, depth + 1)
+
+                # todo: find out why brdf mostly returns 0
+                # @printf(Base.fdio(2), "sray: [%f, %f, %f] -> [%f, %f, %f]\n",
+                #         scattered.origin[1],
+                #         scattered.origin[2],
+                #         scattered.origin[3], 
+                #         scattered.direction[1],
+                #         scattered.direction[2],
+                #         scattered.direction[3], 
+                #         )
+
+                # @printf(Base.fdio(2), "brdf: [%f, %f, %f] c: [%f, %f, %f]\n",
+                #         brdf[1], brdf[2], brdf[3],
+                #         c[1], c[2], c[3])
+
+                return emission + brdf .* c / pdf
             else
                 srec = scatter(hitres.material, r, hitres)
                 if (isa(srec, ScatterRecord))
                     if (srec.is_specular)
-                        return srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
-                    else
-                        scattered = Ray(hitres.p, generate(CosinePDF(hitres.normal)))
+                        return emission + srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
+                   else
+                        scattered = Ray(hitres.p, generate(srec.pdf), r.time)
                         return emission + srec.attenuation .* colorBRDF(scattered, world, depth + 1)
                     end
                 end
