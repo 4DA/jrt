@@ -124,10 +124,10 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
                         return emission + srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
                    else
                         scattered = Ray(hitres.p, generate(srec.pdf), r.time)
-                        return emission + srec.attenuation .* colorBRDF(scattered, world, depth + 1)
+                        pdf_val = value(srec.pdf, scattered.direction)
+                        return emission + srec.attenuation .* scatteringPDF(hitres.material, r, hitres, scattered) .* colorBRDF(scattered, world, depth + 1) / pdf_val
                     end
                 end
-                
             end
         end
         return emission
