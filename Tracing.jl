@@ -99,6 +99,9 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
                 pdf = abs(scattered.direction[3]) / pi
                 rayInLocal = to_world(P.uvw, r.direction)
 
+                # todo review this
+                cosThetaI = AbsCosTheta(rayInLocal)
+
                 brdf = f(hitres.material, random_cosine_direction(), rayInLocal)
                 c = colorBRDF(scattered, world, depth + 1)
 
@@ -116,13 +119,16 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
                 #         brdf[1], brdf[2], brdf[3],
                 #         c[1], c[2], c[3])
 
-                return emission + brdf .* c / pdf
+                return emission + brdf * cosThetaI .* c / pdf
             else
                 srec = scatter(hitres.material, r, hitres)
                 if (isa(srec, ScatterRecord))
                     if (srec.is_specular)
                         return emission + srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
-                   else
+                    else
+                        # lambert reflection in brdf terms:
+                        # f(wi, wo) = R / pi
+
                         scattered = Ray(hitres.p, generate(srec.pdf), r.time)
                         pdf_val = value(srec.pdf, scattered.direction)
                         return emission + srec.attenuation .* scatteringPDF(hitres.material, r, hitres, scattered) .* colorBRDF(scattered, world, depth + 1) / pdf_val
