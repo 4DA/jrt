@@ -90,59 +90,27 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
     if (isa(hitres, HitRecord))
         emission = emitted(hitres.material, r, hitres, hitres.u, hitres.v, hitres.p)
         if (depth < 50)
-            if (isa(hitres.material, MicrofacetReflection))
+            srec = scatter(hitres.material, r, hitres)
+            if (isa(srec, ScatterRecord))
+                if (srec.is_specular)
+                    return emission + srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
+                else
+                    # lambert reflection in brdf terms:
+                    # f(wi, wo) = R / pi
+                    # emission + att * (cosN^O / PI) * Li / (cos N^O / PI)
+                    P = CosinePDF(hitres.normal)
+                    scattered = Ray(hitres.p, generate(P), hitres.t)
+                    wiInLocal = to_world(P.uvw, r.direction)
+                    woInLocal = to_world(P.uvw, scattered.direction)
 
-                # todo: divide by cosine pdf
-                P = CosinePDF(hitres.normal)
+                    cosine = clamp(dot(hitres.normal, normalize(scattered.direction)), 0.0, 1.0)
 
-                scattered = Ray(hitres.p, generate(P), hitres.t)
-                pdf = abs(scattered.direction[3]) / pi
-                rayInLocal = to_world(P.uvw, r.direction)
+                    pdf_val = value(srec.pdf, scattered.direction)
 
-                # todo review this
-                cosThetaI = AbsCosTheta(rayInLocal)
-
-                brdf = f(hitres.material, random_cosine_direction(), rayInLocal)
-                c = colorBRDF(scattered, world, depth + 1)
-
-                # todo: find out why brdf mostly returns 0
-                # @printf(Base.fdio(2), "sray: [%f, %f, %f] -> [%f, %f, %f]\n",
-                #         scattered.origin[1],
-                #         scattered.origin[2],
-                #         scattered.origin[3], 
-                #         scattered.direction[1],
-                #         scattered.direction[2],
-                #         scattered.direction[3], 
-                #         )
-
-                # @printf(Base.fdio(2), "brdf: [%f, %f, %f] c: [%f, %f, %f]\n",
-                #         brdf[1], brdf[2], brdf[3],
-                #         c[1], c[2], c[3])
-
-                return emission + brdf * cosThetaI .* c / pdf
-            else
-                srec = scatter(hitres.material, r, hitres)
-                if (isa(srec, ScatterRecord))
-                    if (srec.is_specular)
-                        return emission + srec.attenuation .* colorBRDF(srec.specular_ray, world, depth + 1)
-                    else
-                        # lambert reflection in brdf terms:
-                        # f(wi, wo) = R / pi
-                        # emission + att * (cosN^O / PI) * Li / (cos N^O / PI)
-                        P = CosinePDF(hitres.normal)
-                        scattered = Ray(hitres.p, generate(P), hitres.t)
-                        wiInLocal = to_world(P.uvw, r.direction)
-                        woInLocal = to_world(P.uvw, scattered.direction)
-
-                        cosine = clamp(dot(hitres.normal, normalize(scattered.direction)), 0.0, 1.0)
-
-                        pdf_val = value(srec.pdf, scattered.direction)
-
-                        return emission +
-                            cosine *
-                            f(hitres.material, woInLocal, wiInLocal) .*
-                            colorBRDF(scattered, world, depth + 1) / pdf_val
-                    end
+                    return emission +
+                        cosine *
+                        f(hitres.material, woInLocal, wiInLocal) .*
+                        colorBRDF(scattered, world, depth + 1) / pdf_val
                 end
             end
         end
