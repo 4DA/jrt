@@ -128,10 +128,20 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
                     else
                         # lambert reflection in brdf terms:
                         # f(wi, wo) = R / pi
+                        # emission + att * (cosN^O / PI) * Li / (cos N^O / PI)
+                        P = CosinePDF(hitres.normal)
+                        scattered = Ray(hitres.p, generate(P), hitres.t)
+                        wiInLocal = to_world(P.uvw, r.direction)
+                        woInLocal = to_world(P.uvw, scattered.direction)
 
-                        scattered = Ray(hitres.p, generate(srec.pdf), r.time)
+                        cosine = clamp(dot(hitres.normal, normalize(scattered.direction)), 0.0, 1.0)
+
                         pdf_val = value(srec.pdf, scattered.direction)
-                        return emission + srec.attenuation .* scatteringPDF(hitres.material, r, hitres, scattered) .* colorBRDF(scattered, world, depth + 1) / pdf_val
+
+                        return emission +
+                            cosine *
+                            f(hitres.material, woInLocal, wiInLocal) .*
+                            colorBRDF(scattered, world, depth + 1) / pdf_val
                     end
                 end
             end

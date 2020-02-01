@@ -109,12 +109,47 @@ function evaluate(f::FresnelDielectric, cosThetaI::Float64)::Float64
     return fresnelDielectric(cosThetaI, f.etaI, f.etaT)
 end
 
+# ------------------------------------------------------------------------------
+
+struct LambertianReflection <: BxDF
+    R::Vec3
+end
+
+function emitted(m::LambertianReflection, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
+    return [0.0, 0.0, 0.0]
+end
+
+function scatter(m::LambertianReflection, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
+    return ScatterRecord(Ray([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+                         false,
+                         [0.0, 0.0, 0.0],
+                         CosinePDF(hit.normal))
+end
+
+
+# It returns the value of the distribution function for the given pair of
+# directions.  This interface implicitly assumes that light in different
+# wavelengths is decoupled—energy at one wavelength will not be reflected at a
+# different wavelength.
+
+function f(lr::LambertianReflection, wo::Vec3, wi::Vec3)::Vec3
+    return lr.R / pi
+end
+
+# ----------------------
+
 struct MicrofacetReflection <: BxDF
     R::Vec3
     distribution::MicrofacetDistribution
     fresnel::Fresnel
 end
 
+function scatter(m::MicrofacetReflection, r_in::Ray, hit::HitRecord)::Union{ScatterRecord, Nothing}
+    return ScatterRecord(Ray([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+                         false,
+                         [0.0, 0.0, 0.0],
+                         CosinePDF(hit.normal))
+end
 
 struct BeckmannDistribution <: MicrofacetDistribution
     alphax::Float64
@@ -221,8 +256,6 @@ end
 function emitted(m::MicrofacetReflection, r_in::Ray, rec::HitRecord, u::Float64, v::Float64, p::Vec3)::Vec3
     return [0.0, 0.0, 0.0]
 end
-
-
 
 
 # --- Beckmann distribution

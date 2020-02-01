@@ -84,9 +84,9 @@ end
 function cornell_box_brdf()::Hitable
     list::Array{Hitable} = []
 
-    red = Lambertian(ConstantTexture([0.65, 0.05, 0.05]))
-    white = Lambertian(ConstantTexture([0.73, 0.73, 0.73]))
-    green = Lambertian(ConstantTexture([0.12, 0.45, 0.15]))
+    red = LambertianReflection([0.65, 0.05, 0.05])
+    white = LambertianReflection([0.73, 0.73, 0.73])
+    green = LambertianReflection([0.12, 0.45, 0.15])
     light = DiffuseLight(ConstantTexture([15.0, 15.0, 15.0]))
 
     whiteBRDF = MicrofacetReflection([0.73, 0.73, 0.73],
