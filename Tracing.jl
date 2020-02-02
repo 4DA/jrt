@@ -98,10 +98,14 @@ function colorBRDF(r::Ray, world::Hitable, depth::Int64)::Vec3
                     # lambert reflection in brdf terms:
                     # f(wi, wo) = R / pi
                     # emission + att * (cosN^O / PI) * Li / (cos N^O / PI)
+
+                    # since we are doing camera-light tracing, the following terminology is implied:
+                    # wi is generated, wo is incoming ray
+
                     P = CosinePDF(hitres.normal)
                     scattered = Ray(hitres.p, generate(P), hitres.t)
-                    wiInLocal = to_world(P.uvw, r.direction)
-                    woInLocal = to_world(P.uvw, scattered.direction)
+                    wiInLocal = to_world(P.uvw, scattered.direction)
+                    woInLocal = to_world(P.uvw, r.direction)
 
                     cosine = clamp(dot(hitres.normal, normalize(scattered.direction)), 0.0, 1.0)
 

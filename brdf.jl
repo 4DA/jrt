@@ -151,9 +151,21 @@ function scatter(m::MicrofacetReflection, r_in::Ray, hit::HitRecord)::Union{Scat
                          CosinePDF(hit.normal))
 end
 
+function roughnessToAlphaBkm(roughness::Float64)::Float64
+    roughness = max(roughness, 1e-3)
+    x = log(roughness)
+
+    return 1.62142 + 0.819955 * x + 0.1734 * x * x +
+        0.0171201 * x * x * x + 0.000640711 * x * x * x * x
+end
+
 struct BeckmannDistribution <: MicrofacetDistribution
     alphax::Float64
     alphay::Float64
+
+    function BeckmannDistribution(r1, r2)
+        return new(roughnessToAlphaBkm(r1), roughnessToAlphaBkm(r2))
+    end
 end
 
 function lambda(dist::BeckmannDistribution, w::Vec3)::Float64
@@ -204,11 +216,11 @@ function f(bxdf::MicrofacetReflection, wo::Vec3, wi::Vec3)::Vec3
     wh = wi + wo;
     # Handle degenerate cases for microfacet reflection
 
-    if cosThetaI == 0 || cosThetaO == 0
+    if cosThetaI == 0.0 || cosThetaO == 0.0
         return Vec3(0.);
     end
 
-    if (wh[1] == 0 && wh[2] == 0 && wh[3] == 0)
+    if (wh[1] == 0.0 && wh[2] == 0.0 && wh[3] == 0.0)
         return Vec3(0.);
     end
 
@@ -219,7 +231,7 @@ function f(bxdf::MicrofacetReflection, wo::Vec3, wi::Vec3)::Vec3
 
     # @printf("fresnel = %f\n", F)
     return bxdf.R * D(bxdf.distribution, wh) * G(bxdf.distribution, wo, wi) * F /
-           (4 * cosThetaI * cosThetaO);
+           (4.0 * cosThetaI * cosThetaO);
 end
 
 function sanityTest()
